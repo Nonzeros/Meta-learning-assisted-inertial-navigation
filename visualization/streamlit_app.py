@@ -155,12 +155,13 @@ def plot_time_series(log_df, run_name: str):
     """
     绘制时间序列对比图：位置、速度、姿态
     对于速度和位置，xyz三个方向分别各一张图
-    每张图包含：纯惯导、UKF融合结果、真实结果
+    每张图包含：惯导预测（UKF融合前）、UKF融合结果、真实结果
     
     参考main.py中的绘图逻辑：
-    - ukf_avps_xyz[i, 0:-5] 其中 i=0,1,2是姿态，i=3,4,5是速度，i=6,7,8是位置
-    - pure_avps_xyz[i, 0:pure_ins_data_length] 纯惯导数据
-    - y_real_data_total[i, 0:-5] 真实数据（只在i>2 and i<9时绘制，即速度和位置）
+    - 排除最后几个数据点（exclude_last）
+    - UKF融合结果：蓝色实线 (#2E86AB)
+    - 纯惯导解：红色虚线 (#F24236, dash)
+    - 真实值：绿色点划线 (#06A77D, dot)
     """
     if log_df is None or log_df.empty:
         return [], [], []
@@ -170,58 +171,63 @@ def plot_time_series(log_df, run_name: str):
         st.warning("日志文件中没有找到时间列")
         return [], [], []
     
+    # 排除最后几个数据点（与main.py保持一致）
+    exclude_last = min(5, len(log_df) - 1)
+    if exclude_last > 0:
+        log_df_plot = log_df.iloc[:-exclude_last].copy()
+    else:
+        log_df_plot = log_df.copy()
+    
     # 位置对比图（X、Y、Z各一张）
-    # 对应ukf_avps_xyz索引6,7,8
     pos_figs = []
     pos_directions = ['x', 'y', 'z']
     pos_labels = ['东向', '北向', '天向']
-    pos_indices = [6, 7, 8]  # 在ukf_avps_xyz中的索引
     
-    for dir, label, idx in zip(pos_directions, pos_labels, pos_indices):
+    for dir, label in zip(pos_directions, pos_labels):
         fig = go.Figure()
         
         # UKF融合位置 - 使用日志文件中的ukf_fused_px/py/pz
         ukf_col = f'ukf_fused_p{dir}'
-        if ukf_col in log_df.columns:
+        if ukf_col in log_df_plot.columns:
             # 过滤掉无效值（NaN或0）
-            valid_mask = pd.notna(log_df[ukf_col]) & (log_df[ukf_col] != 0)
+            valid_mask = pd.notna(log_df_plot[ukf_col]) & (log_df_plot[ukf_col] != 0)
             if valid_mask.any():
                 fig.add_trace(go.Scatter(
-                    x=log_df.loc[valid_mask, time_col],
-                    y=log_df.loc[valid_mask, ukf_col],
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, ukf_col],
                     name='UKF融合结果',
                     mode='lines',
                     line=dict(color='#2E86AB', width=2)
                 ))
         
-        # 纯惯导位置 - 使用日志文件中的ins_pred_pos_x/y/z
+        # 惯导预测位置（UKF融合前）- 使用日志文件中的ins_pred_pos_x/y/z
         ins_col = f'ins_pred_pos_{dir}'
-        if ins_col in log_df.columns:
-            valid_mask = pd.notna(log_df[ins_col]) & (log_df[ins_col] != 0)
+        if ins_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[ins_col]) & (log_df_plot[ins_col] != 0)
             if valid_mask.any():
                 fig.add_trace(go.Scatter(
-                    x=log_df.loc[valid_mask, time_col],
-                    y=log_df.loc[valid_mask, ins_col],
-                    name='纯惯导解',
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, ins_col],
+                    name='惯导预测',
                     mode='lines',
                     line=dict(color='#F24236', width=2, dash='dash')
                 ))
         
         # 真实位置 - 使用日志文件中的real_px/py/pz
         real_col = f'real_p{dir}'
-        if real_col in log_df.columns:
-            valid_mask = pd.notna(log_df[real_col]) & (log_df[real_col] != 0)
+        if real_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[real_col]) & (log_df_plot[real_col] != 0)
             if valid_mask.any():
                 fig.add_trace(go.Scatter(
-                    x=log_df.loc[valid_mask, time_col],
-                    y=log_df.loc[valid_mask, real_col],
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, real_col],
                     name='真实值',
                     mode='lines',
                     line=dict(color='#06A77D', width=2, dash='dot')
                 ))
         
         fig.update_layout(
-            title=f'{run_name} - {label}位置对比',
+            title=f'{label}位置对比',
             xaxis_title='时间 (s)',
             yaxis_title=f'{label}位置 (m)',
             height=400,
@@ -230,56 +236,54 @@ def plot_time_series(log_df, run_name: str):
         pos_figs.append(fig)
     
     # 速度对比图（X、Y、Z各一张）
-    # 对应ukf_avps_xyz索引3,4,5
     vel_figs = []
     vel_directions = ['x', 'y', 'z']
     vel_labels = ['东向', '北向', '天向']
-    vel_indices = [3, 4, 5]  # 在ukf_avps_xyz中的索引
     
-    for dir, label, idx in zip(vel_directions, vel_labels, vel_indices):
+    for dir, label in zip(vel_directions, vel_labels):
         fig = go.Figure()
         
         # UKF融合速度 - 使用日志文件中的ukf_fused_vx/vy/vz
         ukf_col = f'ukf_fused_v{dir}'
-        if ukf_col in log_df.columns:
-            valid_mask = pd.notna(log_df[ukf_col])
+        if ukf_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[ukf_col])
             if valid_mask.any():
                 fig.add_trace(go.Scatter(
-                    x=log_df.loc[valid_mask, time_col],
-                    y=log_df.loc[valid_mask, ukf_col],
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, ukf_col],
                     name='UKF融合结果',
                     mode='lines',
                     line=dict(color='#2E86AB', width=2)
                 ))
         
-        # 纯惯导速度 - 使用日志文件中的ins_pred_vx/vy/vz
+        # 惯导预测速度（UKF融合前）- 使用日志文件中的ins_pred_vx/vy/vz
         ins_col = f'ins_pred_v{dir}'
-        if ins_col in log_df.columns:
-            valid_mask = pd.notna(log_df[ins_col])
+        if ins_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[ins_col])
             if valid_mask.any():
                 fig.add_trace(go.Scatter(
-                    x=log_df.loc[valid_mask, time_col],
-                    y=log_df.loc[valid_mask, ins_col],
-                    name='纯惯导解',
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, ins_col],
+                    name='惯导预测',
                     mode='lines',
                     line=dict(color='#F24236', width=2, dash='dash')
                 ))
         
         # 真实速度 - 使用日志文件中的real_vx/vy/vz
         real_col = f'real_v{dir}'
-        if real_col in log_df.columns:
-            valid_mask = pd.notna(log_df[real_col])
+        if real_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[real_col])
             if valid_mask.any():
                 fig.add_trace(go.Scatter(
-                    x=log_df.loc[valid_mask, time_col],
-                    y=log_df.loc[valid_mask, real_col],
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, real_col],
                     name='真实值',
                     mode='lines',
                     line=dict(color='#06A77D', width=2, dash='dot')
                 ))
         
         fig.update_layout(
-            title=f'{run_name} - {label}速度对比',
+            title=f'{label}速度对比',
             xaxis_title='时间 (s)',
             yaxis_title=f'{label}速度 (m/s)',
             height=400,
@@ -288,56 +292,54 @@ def plot_time_series(log_df, run_name: str):
         vel_figs.append(fig)
     
     # 姿态对比图（X、Y、Z各一张）
-    # 对应ukf_avps_xyz索引0,1,2
     att_figs = []
     att_directions = ['x', 'y', 'z']
     att_labels = ['X', 'Y', 'Z']
-    att_indices = [0, 1, 2]  # 在ukf_avps_xyz中的索引
     
-    for dir, label, idx in zip(att_directions, att_labels, att_indices):
+    for dir, label in zip(att_directions, att_labels):
         fig = go.Figure()
         
         # UKF融合姿态 - 使用日志文件中的ukf_fused_att_x/y/z
         ukf_col = f'ukf_fused_att_{dir}'
-        if ukf_col in log_df.columns:
-            valid_mask = pd.notna(log_df[ukf_col])
+        if ukf_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[ukf_col])
             if valid_mask.any():
                 fig.add_trace(go.Scatter(
-                    x=log_df.loc[valid_mask, time_col],
-                    y=log_df.loc[valid_mask, ukf_col],
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, ukf_col],
                     name='UKF融合结果',
                     mode='lines',
                     line=dict(color='#2E86AB', width=2)
                 ))
         
-        # 纯惯导姿态 - 使用日志文件中的ins_pred_att_x/y/z
+        # 惯导预测姿态（UKF融合前）- 使用日志文件中的ins_pred_att_x/y/z
         ins_col = f'ins_pred_att_{dir}'
-        if ins_col in log_df.columns:
-            valid_mask = pd.notna(log_df[ins_col])
+        if ins_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[ins_col])
             if valid_mask.any():
                 fig.add_trace(go.Scatter(
-                    x=log_df.loc[valid_mask, time_col],
-                    y=log_df.loc[valid_mask, ins_col],
-                    name='纯惯导解',
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, ins_col],
+                    name='惯导预测',
                     mode='lines',
                     line=dict(color='#F24236', width=2, dash='dash')
                 ))
         
         # 真实姿态 - 使用日志文件中的real_att_x/y/z（如果有）
         real_col = f'real_att_{dir}'
-        if real_col in log_df.columns:
-            valid_mask = pd.notna(log_df[real_col])
+        if real_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[real_col])
             if valid_mask.any():
                 fig.add_trace(go.Scatter(
-                    x=log_df.loc[valid_mask, time_col],
-                    y=log_df.loc[valid_mask, real_col],
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, real_col],
                     name='真实值',
                     mode='lines',
                     line=dict(color='#06A77D', width=2, dash='dot')
                 ))
         
         fig.update_layout(
-            title=f'{run_name} - 姿态{label}对比',
+            title=f'姿态{label}对比',
             xaxis_title='时间 (s)',
             yaxis_title=f'姿态{label} (度)',
             height=400,
@@ -526,7 +528,7 @@ def main():
     
     with tab5:
         st.header("📈 时间序列对比")
-        st.markdown("显示位置、速度、姿态的时间序列对比图")
+        st.markdown("显示位置、速度、姿态的时间序列对比图（从日志文件读取）")
         
         if not df.empty:
             # 选择实验
@@ -550,23 +552,32 @@ def main():
                     # 绘制时间序列图
                     pos_figs, vel_figs, att_figs = plot_time_series(log_df, selected_run_ts)
                     
-                    # 显示位置对比图（X、Y、Z各一张）
-                    st.subheader("位置对比")
-                    if pos_figs:
-                        for i, fig in enumerate(pos_figs):
-                            st.plotly_chart(fig, use_container_width=True)
+                    # 使用标签页分别显示姿态、速度、位置
+                    tab_att, tab_vel, tab_pos = st.tabs(["🎯 姿态对比", "⚡ 速度对比", "📍 位置对比"])
                     
-                    # 显示速度对比图（X、Y、Z各一张）
-                    st.subheader("速度对比")
-                    if vel_figs:
-                        for i, fig in enumerate(vel_figs):
-                            st.plotly_chart(fig, use_container_width=True)
+                    with tab_att:
+                        st.subheader("姿态对比（X、Y、Z方向）")
+                        if att_figs:
+                            for i, (fig, label) in enumerate(zip(att_figs, ['X', 'Y', 'Z'])):
+                                st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.warning("无法生成姿态对比图")
                     
-                    # 显示姿态对比图（X、Y、Z各一张）
-                    st.subheader("姿态对比")
-                    if att_figs:
-                        for i, fig in enumerate(att_figs):
-                            st.plotly_chart(fig, use_container_width=True)
+                    with tab_vel:
+                        st.subheader("速度对比（东向、北向、天向）")
+                        if vel_figs:
+                            for i, (fig, label) in enumerate(zip(vel_figs, ['东向', '北向', '天向'])):
+                                st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.warning("无法生成速度对比图")
+                    
+                    with tab_pos:
+                        st.subheader("位置对比（东向、北向、天向）")
+                        if pos_figs:
+                            for i, (fig, label) in enumerate(zip(pos_figs, ['东向', '北向', '天向'])):
+                                st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.warning("无法生成位置对比图")
                 else:
                     st.warning(f"无法加载日志文件: {log_file_name}")
                     st.info("提示：请确保日志文件在 navigation_logs 目录中")

@@ -35,10 +35,16 @@ def re_sampling(px, pw,NP):
     return px, pw
 
 
-def pf_core(px,pw,Y,phi,lambda1,deltaT,numPar,s2):
-    # 初始化
-    R = 0.1
-    q0 = 0.1
+def pf_core(px,pw,Y,phi,lambda1,deltaT,numPar,s2,filter_config=None):
+    # 初始化 - 从配置文件读取参数
+    if filter_config is None:
+        # 默认值
+        R = 0.1
+        q0 = 0.1
+    else:
+        pf_config = filter_config.get('particle_filter', {})
+        R = pf_config.get('R', 0.1)
+        q0 = pf_config.get('q0', 0.1)
 
     Nth = 50
     randQs = np.random.normal(0,q0,(numPar,3,3))
@@ -80,11 +86,17 @@ def pf_core(px,pw,Y,phi,lambda1,deltaT,numPar,s2):
 
     return x_est,px,pw
 
-def pf_core2(px,pw,Y,phi,lambda1,deltaT,numPar,s2,p_hso,w_hso):
+def pf_core2(px,pw,Y,phi,lambda1,deltaT,numPar,s2,p_hso,w_hso,filter_config=None):
     # 粒子滤波核心代码，适用于HSO改进
-    # 初始化
-    R = 0.1
-    q0 = 0.1
+    # 初始化 - 从配置文件读取参数
+    if filter_config is None:
+        # 默认值
+        R = 0.1
+        q0 = 0.1
+    else:
+        pf_config = filter_config.get('particle_filter', {})
+        R = pf_config.get('R', 0.1)
+        q0 = pf_config.get('q0', 0.1)
 
     Nth = 50
     # randQs = np.random.normal(0,q0,(numPar,3,3))

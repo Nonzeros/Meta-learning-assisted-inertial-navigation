@@ -181,7 +181,7 @@ def validation2(phi_net, h_net, adaptinput: np.ndarray, adaptlabel: np.ndarray, 
 
     return Y_bars
 
-def real_time_adaptation3(data_num,a0,px,pw,phi_net, h_net, input_data, label_data, lambda1, deltaT,numPar,s2,lam=0):
+def real_time_adaptation3(data_num,a0,px,pw,phi_net, h_net, input_data, label_data, lambda1, deltaT,numPar,s2,lam=0,filter_config=None):
     ## 实时计算a，粒子滤波
     # 这个实时更新，是用上一时刻的a预测这一时刻的气动力，然后再更新a
     with torch.no_grad():
@@ -201,7 +201,7 @@ def real_time_adaptation3(data_num,a0,px,pw,phi_net, h_net, input_data, label_da
         Phi_T = Phi.T
         Y = Y.numpy()
         Y = Y.reshape((B,3))
-        ak,px,pw = pf_model.pf_core(px,pw,Y,Phi,lambda1,deltaT,numPar,s2)
+        ak,px,pw = pf_model.pf_core(px,pw,Y,Phi,lambda1,deltaT,numPar,s2,filter_config=filter_config)
         Ck = pf_model.calc_covariance(ak,px,pw)
         Y_bar = Phi @ ak
 
@@ -221,18 +221,28 @@ def validation_realtime(phi_net, h_net, inputdata: np.ndarray,outputlabel: np.nd
         span = 1
         # 滤波参数
         B = span # 仿真，每次取数为span，现在为1，就是每次取一个数字来仿真
-        # 滤波参数
-        r0 = 0.1
-        R = np.full((B,B),r0)
-        Q = np.full((3, dim_a), 0.1)
+        # 从配置文件读取滤波参数
+        filter_config = options.get('filter_config', {})
+        solve_type = options['solve_type']
+        
+        if solve_type == 1:  # 卡尔曼滤波
+            kf_config = filter_config.get('kalman_filter', {})
+            r0 = kf_config.get('R', 0.1)
+            q0 = kf_config.get('Q', 0.1)
+            R = np.full((B, B), r0)
+            Q = np.full((3, dim_a), q0)
+        else:  # 粒子滤波，参数在pf_core中读取
+            R = None  # 粒子滤波的R在pf_core中设置
+            Q = None  # 粒子滤波的Q在pf_core中设置
+        
         lambda1 = options['lambda1']
         if solve_type == 1:
             Y_bar,ak,Pk = real_time_adaptation(span,dynamic_a,dynamic_P,Q,R,
                                                phi_net,h_net,inputdata,outputlabel,lambda1,vel_data,pos_data)
 
         elif solve_type == 2:
-
-            Y_bar,ak,px,pw,Pk = real_time_adaptation3(span,dynamic_a,px,pw,phi_net,h_net,inputdata,outputlabel,lambda1,deltaT,numPar,0)
+            # 传递filter_config给real_time_adaptation3
+            Y_bar,ak,px,pw,Pk = real_time_adaptation3(span,dynamic_a,px,pw,phi_net,h_net,inputdata,outputlabel,lambda1,deltaT,numPar,0,filter_config=filter_config)
 
         # def real_time_adaptation(data_num, a0, P0, Q, R, phi_net, h_net, input_data, label_data, lambda1, vel_data):
 

@@ -1,0 +1,47 @@
+# 滤波器配置文件
+# 用于配置粒子滤波、卡尔曼滤波和MATLAB UKF的参数
+
+# 模型配置
+model:
+  name: "neural-fly_dim-a-3_v-q-pwm-epoch-900"  # 使用的模型名称
+  dim_a: 3  # 动力学模型参数维度
+
+# 滤波器类型配置
+filter:
+  type: 2  # 1=卡尔曼滤波(KF), 2=粒子滤波(PF)
+  numPar: 30  # 粒子滤波的粒子数量（仅当type=2时使用）
+
+# 粒子滤波参数（仅当filter.type=2时使用）
+particle_filter:
+  R: 0.1  # 观测噪声协方差
+  q0: 0.1  # 过程噪声标准差
+
+# 卡尔曼滤波参数（仅当filter.type=1时使用）
+kalman_filter:
+  Q: 0.1  # 过程噪声协方差（标量，会扩展为(3, dim_a)的矩阵）
+  R: 0.1  # 观测噪声协方差（标量，会扩展为(B, B)的矩阵，B=span=1）
+
+# MATLAB UKF参数
+matlab_ukf:
+  # IMU误差参数（用于设置Q矩阵）
+  # imuerrset(eb, db, web, wdb, ...)
+  imu_err:
+    eb: 10  # 陀螺常值偏置 (deg/h)
+    db: 1000  # 加速度计常值偏置 (ug)
+    web: 0.0001  # 角随机游走 (deg/sqrt(h)) - 用于Q矩阵
+    wdb: 0.0001  # 速度随机游走 (ug/sqrt(Hz)) - 用于Q矩阵
+  
+  # AVP初始误差参数（用于设置P0矩阵）
+  # avperrset(phi, dvn, dpos)
+  avp_err:
+    phi: [0.1, 0.1, 0.1]  # 平台失准角 (arcmin) - 三个方向
+    dvn: 0.1  # 速度误差 (m/s)
+    dpos: [1, 1, 3]  # 位置误差 [dlat, dlon, dhgt] (m)
+  
+  # 位置误差参数（用于设置R矩阵）
+  # poserrset([rx, ry, rz])
+  pos_err: [0.001, 0.001, 0.001]  # 位置误差 (m)
+  
+  # R矩阵（直接设置，覆盖poserrset的结果）
+  Rk: [0.000000010, 0.00000065, 0.0000011]  # 观测噪声协方差矩阵的对角元素
+
