@@ -1,0 +1,47 @@
+# 实验配置文件
+# 用于批量实验和参数调整
+
+# 验证集配置
+validation:
+  # 验证集文件夹
+  dataset_folder: "data/experiment"
+  # 验证集文件名列表（支持批量实验）
+  validation_files:
+    - "custom_figure8_baseline_35wind.csv"
+    # - "custom_figure8_baseline_70wind.csv"
+    # - "custom_figure8_baseline_100wind.csv"
+    # - "custom_figure8_baseline_70p20sint.csv"
+    # - "custom_figure8_baseline_nowind.csv"
+
+# 适应阶段配置
+adaptation:
+  # 适应阶段长度（秒）
+  adapt_duration: 2.0  # 对应原来的adapt_end_index=100，100*0.02=2.0秒
+
+# 滤波参数配置
+filter:
+  # 滤波类型：1=卡尔曼滤波(KF), 2=粒子滤波(PF)
+  solve_type: 2
+  # 粒子数（仅PF时使用）
+  numPar: 30
+  # lambda1参数
+  lambda1: 0.1
+  # 过程噪声协方差Q的对角线元素（Q是3x3对角矩阵，对角线元素相同）
+  q0: 0.1
+  # 观测噪声协方差R（标量）
+  r0: 0.1
+
+# 模型配置
+model:
+  dataset: "neural-fly"
+  dim_a: 3
+  features: ["v", "q", "pwm"]
+  stopping_epoch: 900
+
+# 循环计算配置
+loop:
+  # 循环次数（如果为-1，则使用验证集的全部数据）
+  loops: 2000
+  # 如果loops为-1，使用验证集的总时长（秒）
+  # max_duration: 40.0
+

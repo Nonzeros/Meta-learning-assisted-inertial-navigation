@@ -34,9 +34,12 @@ def intelligent_dynamic_module(inputdata, outputlabel, delta_v,delta_p, dynamic_
     final_model = mlmodel.load_model(modelname = modelname + '-epoch-' + str(stopping_epoch)) # 导入最终模型
 
     # 利用滤波的思路实时预测
+    # 从options中获取q0和r0参数
+    q0 = options.get('q0', 0.1)
+    r0 = options.get('r0', 0.1)
     Y_bars,dynamic_a,dynamic_P,px,pw = mlmodel.validation_realtime(phi_net=final_model.phi, h_net=final_model.h, inputdata=inputdata,
                                          outputlabel=outputlabel,vel_data=delta_v, pos_data=delta_p, options=options,
-                                             dynamic_a=dynamic_a,dynamic_P=dynamic_P,px=px_minus1,pw=pw_minus1)
+                                             dynamic_a=dynamic_a,dynamic_P=dynamic_P,px=px_minus1,pw=pw_minus1, q0=q0, r0=r0)
 
     # 根据适应阶段和预测阶段的数据进行纯动力学导航解算
     deltat = 0.02 # 数据是每0.02s更新一次

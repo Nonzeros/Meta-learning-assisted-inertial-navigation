@@ -10,9 +10,22 @@ from scipy.interpolate import interp1d
 
 import utils
 import mlmodel
+import experiment_utils
 
 import numpy as np
 import matplotlib.pyplot as plt
+
+# 导入MLflow工具
+import sys
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'visualization'))
+from mlflow_utils import (
+    setup_mlflow_experiment, 
+    log_experiment_params, 
+    log_experiment_metrics,
+    log_model_file,
+    start_run,
+    end_run
+)
 
 # 获取项目根目录（main.py 在 src/ 目录下，所以需要向上两级）
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -22,60 +35,127 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 #测试集
 from intelligent_dynamic_module import intelligent_dynamic_module
 
-dataset = 'neural-fly'
-dataset_folder = os.path.join(project_root, 'data', 'experiment2')
-# 数据集的文件列表
-data_files = os.listdir(dataset_folder)
-# 原始数据文件
-RawData = utils.load_data(dataset_folder)
-# 数据集格式的飞行的 速度、姿态、pwm控制信号
-dim_a = 3
-features = ['v', 'q', 'pwm'] # 定义一个列表，包含三个特征名称
-label = 'fa'
-Data = utils.format_data(RawData, features=features, output=label)
-data_num = 2 # 研究文件夹中第 data_num+1 个数据集的情况
-# 6个环境下的飞行过程的姿态变换矩阵R和无人机推力(T_sp是期望的推力，不过目前把它当作理想控制吧，认为实际推力就是期望推力)
-R = RawData[data_num]['R']
-T_sps = RawData[data_num]['T_sp']
-hover_throttles = RawData[data_num]['hover_throttle']
+# ========== 从配置文件加载参数 ==========
+config_path = os.path.join(project_root, 'configs', 'experiment_config.yaml')
+config = experiment_utils.load_config(config_path)
 
-# 真实的数据
-real_p = RawData[data_num]['p'] # 真实的飞行位置
-real_p_row = real_p.T
-real_v = RawData[data_num]['v'] # 真实的飞行速度
-real_v_row = real_v.T
-real_fas = RawData[data_num]['fa'] # 真实的残余气动力
-# real_fas = RawData[data_num]['my_fa']  # 真实的残余气动力
-desire_ps = RawData[data_num]['p_d']
-desire_vs = RawData[data_num]['v_d']
-ts = RawData[data_num]['t']
+# 模型参数
+model_config = config['model']
+dataset = model_config['dataset']
+dim_a = model_config['dim_a']
+features = model_config['features']
+stopping_epoch = model_config['stopping_epoch']
 
-data = Data[data_num]
-adapt_end_index = 100 # 适应部分下标(不包括)
+# 验证集配置
+validation_config = config['validation']
+dataset_folder = os.path.join(project_root, validation_config['dataset_folder'])
+validation_files = validation_config['validation_files']
 
-# 求解参数设置：由于非训练阶段，只需要设置两个参数即可
-solver_type = 2 # 卡尔曼滤波方法计算 # 1kf 2pf
-numPar = 30
-options = {}
-options['dim_a'] = dim_a
-options['loss_type'] = 'crossentropy-loss'
-options['solve_type'] = solver_type
-options['lambda1'] = 0.1
-options['numPar'] = numPar
+# 适应阶段配置
+adaptation_config = config['adaptation']
+adapt_duration = adaptation_config['adapt_duration']  # 适应阶段时长（秒）
+
+# 滤波参数
+filter_config = config['filter']
+solver_type = filter_config['solve_type']
+numPar = filter_config['numPar']
+lambda1 = filter_config['lambda1']
+q0 = filter_config['q0']
+r0 = filter_config['r0']
+
+# 循环配置
+loop_config = config.get('loop', {})
+loops = loop_config.get('loops', 2000)
+max_duration = loop_config.get('max_duration', None)
+
+# 构建options字典
+options = {
+    'dim_a': dim_a,
+    'loss_type': 'crossentropy-loss',
+    'solve_type': solver_type,
+    'lambda1': lambda1,
+    'numPar': numPar,
+    'q0': q0,
+    'r0': r0,
+}
 
 # 输出options各参数
-print(options)
+print("实验配置:")
+print(f"  验证集文件夹: {dataset_folder}")
+print(f"  验证集文件: {validation_files}")
+print(f"  适应阶段时长: {adapt_duration}秒")
+print(f"  滤波参数: solve_type={solver_type}, q0={q0}, r0={r0}")
+print(f"  Options: {options}")
 
-# 2.matlab设置
-eng = matlab.engine.start_matlab()
-# 将matlab文件加入工作目录
-matlab_utils_path = os.path.join(project_root, 'matlab', 'utils')
-matlab_psins_path = os.path.join(project_root, 'matlab', 'third_part', 'psins240809')
-# 将路径转换为MATLAB格式（使用正斜杠）
-eng.addpath(matlab_utils_path.replace('\\', '/'))
-eng.addpath(matlab_psins_path.replace('\\', '/'))
-# 导入psins全局变量
-glv_init_code = """
+# ========== 批量实验循环 ==========
+for validation_file in validation_files:
+    print(f"\n{'='*60}")
+    print(f"处理验证集文件: {validation_file}")
+    print(f"{'='*60}")
+    
+    # 加载验证集CSV文件
+    validation_csv_path = os.path.join(dataset_folder, validation_file)
+    validation_data = experiment_utils.load_validation_csv(validation_csv_path)
+    
+    # 计算时间步长和适应阶段索引
+    ts = validation_data['t']
+    if len(ts) > 1:
+        dt = float(ts[1] - ts[0])
+    else:
+        dt = 0.02
+    adapt_end_index = int(adapt_duration / dt)
+    
+    print(f"  时间步长: {dt}秒")
+    print(f"  适应阶段索引: {adapt_end_index} (对应 {adapt_duration}秒)")
+    
+    # 提取数据（用于动力学模型）
+    # 使用utils.load_data加载数据（用于format_data）
+    RawData = utils.load_data(dataset_folder, expnames=[validation_file.replace('.csv', '')])
+    if len(RawData) == 0:
+        print(f"警告: 无法加载数据文件 {validation_file}，跳过")
+        continue
+    
+    data_num = 0  # 因为只加载了一个文件
+    Data = utils.format_data(RawData, features=features, output='fa')
+    data = Data[data_num]
+    
+    # 提取真实数据
+    R = RawData[data_num]['R']
+    T_sps = RawData[data_num]['T_sp']
+    hover_throttles = RawData[data_num]['hover_throttle']
+    real_p = RawData[data_num]['p']
+    real_p_row = real_p.T
+    real_v = RawData[data_num]['v']
+    real_v_row = real_v.T
+    real_fas = RawData[data_num]['fa']
+    desire_ps = RawData[data_num]['p_d']
+    desire_vs = RawData[data_num]['v_d']
+    
+    # 计算验证集数据长度
+    validation_length = experiment_utils.calculate_data_length(
+        validation_data, adapt_end_index, loops, max_duration
+    )
+    print(f"  验证集数据长度: {validation_length} (从索引 {adapt_end_index} 开始)")
+
+    # ========== MLflow实验记录初始化 ==========
+    # 为每个验证集文件创建独立的MLflow运行
+    mlflow_tracking_uri = os.path.join(project_root, "mlruns")
+    experiment_name, _ = setup_mlflow_experiment(tracking_uri=mlflow_tracking_uri)
+    run_name = f"{validation_file.replace('.csv', '')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    mlflow_run = start_run(run_name=run_name)
+
+    # 2.matlab设置（只在第一次启动）
+    if 'eng' not in locals():
+        eng = matlab.engine.start_matlab()
+        # 将matlab文件加入工作目录
+        matlab_utils_path = os.path.join(project_root, 'matlab', 'utils')
+        matlab_psins_path = os.path.join(project_root, 'matlab', 'third_part', 'psins240809')
+        # 将路径转换为MATLAB格式（使用正斜杠）
+        eng.addpath(matlab_utils_path.replace('\\', '/'))
+        eng.addpath(matlab_psins_path.replace('\\', '/'))
+    
+    # 导入psins全局变量
+    glv_init_code = """
     % 声明glv为全局变量
     global glv;
     % 初始化Re、f、wie（若未定义则设为空，再赋值默认值）
@@ -162,82 +242,112 @@ glv_init_code = """
     glv.isfig = 1;                 % 图形显示使能
     glv.gfix = [];  glv.dgn = [];  % 备用变量
 """
-eng.eval(glv_init_code, nargout=0)  # nargout=0：无输出，仅执行初始化
-# 设置MATLAB工作目录到ProcessedData文件夹，以便读取Excel文件
-processed_data_path = os.path.join(project_root, 'ProcessedData')
-eng.cd(processed_data_path.replace('\\', '/'), nargout=0)
-# 惯导反演算法计算角增量和比例增量 计算完毕后，可读取 imu 变量获取角增量 比力增量
-matlab_imu, matlab_avp0 = eng.av2imu_main3(adapt_end_index+1,nargout=2)
-# matlab_avp0 = eng.workspace['avp0']  # 返回matlab.double类型
-# matlab_imu = eng.workspace['imu']
-# 转为Python的NumPy数组
-last_avp = np.array(matlab_avp0)
-# 初始信息设置
-start_time_sec = adapt_end_index * 0.02 # 2.00
-last_avp = np.append(last_avp, start_time_sec)
-last_avp = last_avp.reshape((1,10)) # 1*10
-last_avp[0,3:6] = real_v[adapt_end_index,0:3] # real_v 2511*3
+    eng.eval(glv_init_code, nargout=0)  # nargout=0：无输出，仅执行初始化
+    
+    # 准备传给MATLAB的数据
+    pavq_data, matlab_dt = experiment_utils.prepare_matlab_data(validation_data, adapt_end_index)
+    
+    # 初始位置（用于坐标转换）
+    lat0 = 34.13801
+    lon0 = -118.12528
+    h0 = 2.0470
+    
+    # 调用新的MATLAB函数进行惯导反演
+    matlab_imu, matlab_avp0 = eng.av2imu_from_python(
+        matlab.double(pavq_data.tolist()),
+        matlab.double([1]),  # start_index从1开始（MATLAB索引）
+        matlab.double([lat0]),
+        matlab.double([lon0]),
+        matlab.double([h0]),
+        nargout=2
+    )
+    # 转为Python的NumPy数组
+    last_avp = np.array(matlab_avp0)
+    
+    # 初始信息设置
+    start_time_sec = adapt_end_index * dt
+    last_avp = np.append(last_avp, start_time_sec)
+    last_avp = last_avp.reshape((1,10)) # 1*10
+    last_avp[0,3:6] = real_v[adapt_end_index,0:3]
+    
+    # xyz的avp0转llh 取验证集数据作为真实的位置
+    last_avp_xyz = last_avp
+    last_avp_xyz[0,6:9] = real_p[adapt_end_index, 0:3]
+    
+    last_avp_llh_matlab = eng.xyz2llh_subfun( matlab.double( last_avp_xyz.tolist() ) )
+    last_avp = np.array(last_avp_llh_matlab)
 
-# xyz的avp0转llh 取验证集数据作为真实的位置
-last_avp_xyz = last_avp
-last_avp_xyz[0,6:9] = real_p[adapt_end_index, 0:3]
+    # 计算纯惯导求解结果
+    matlab_pure_avps = eng.pure_ins_solve(matlab_imu, matlab.double( last_avp.tolist() ),nargout=1 )
+    pure_avps = np.array(matlab_pure_avps) # num * 10
+    pure_avps = pure_avps.T
+    
+    avp0_change = last_avp # 记录初值
+    imu = np.array(matlab_imu) # 这个imu，就是拿截取以后的数据来算的
+    
+    # UKF初始化
+    matlab_kf, matlab_ins = eng.SINS_dynamic_UKF153_init(matlab.double(avp0_change.tolist()),nargout=2)
+    
+    # 获取UKF参数（Q, R, P0）
+    try:
+        # 从MATLAB结构体中获取参数
+        ukf_Qk = np.array(eng.getfield(matlab_kf, 'Qk')) if 'Qk' in str(matlab_kf) else None
+        ukf_Rk = np.array(eng.getfield(matlab_kf, 'Rk')) if 'Rk' in str(matlab_kf) else None
+        ukf_Pxk = np.array(eng.getfield(matlab_kf, 'Pxk')) if 'Pxk' in str(matlab_kf) else None
+    except Exception as e:
+        print(f"警告: 无法获取UKF参数: {e}")
+        # 如果无法获取，尝试使用MATLAB eval
+        try:
+            ukf_Qk = np.array(eng.eval('kf.Qk', nargout=1))
+            ukf_Rk = np.array(eng.eval('kf.Rk', nargout=1))
+            ukf_Pxk = np.array(eng.eval('kf.Pxk', nargout=1))
+        except:
+            print("无法从MATLAB获取UKF参数，将使用默认值")
+            ukf_Qk = None
+            ukf_Rk = None
+            ukf_Pxk = None
+    
+    # 3.动力学模型神经网络初始设置
+    # 适应阶段最小二乘计算 a 的初始值
+    modelname = f"{dataset}_dim-a-{dim_a}_{'-'.join(features)}"
+    final_model = mlmodel.load_model(modelname=modelname + '-epoch-' + str(stopping_epoch))  # 导入最终模型
+    lam = 0.1
+    
+    adaptinput = data.X[0:adapt_end_index, :]
+    adaptlabel = data.Y[0:adapt_end_index, :]
+    X = torch.from_numpy(adaptinput)  # K x dim_x
+    Y = torch.from_numpy(adaptlabel)  # K x dim_y
+    Phi = final_model.phi(X)  # K x dim_a
+    Phi_T = Phi.transpose(0, 1)  # dim_a x K
+    A = torch.inverse(torch.mm(Phi_T, Phi) + lam * torch.eye(dim_a))  # dim_a x dim_a
+    a0 = torch.mm(torch.mm(A, Phi_T), Y)  # dim_a x dim_y
+    adapt_prediction = torch.mm(final_model.phi(X), a0)  # K x dim_y
+    
+    dynamic_a = a0.detach().numpy()
+    p0 = 0.1
+    dynamic_P = np.full((3, dim_a), 0.1)
 
-last_avp_llh_matlab = eng.xyz2llh_subfun( matlab.double( last_avp_xyz.tolist() ) )
-last_avp = np.array(last_avp_llh_matlab)
+    # 4.循环依次计算
+    # 动态计算循环次数
+    actual_loops = min(validation_length, loops) if loops > 0 else validation_length
+    ukf_avps = np.empty((10, actual_loops))
+    ukf_avps[:,0] = last_avp
+    first_index = adapt_end_index
+    last_last_avp = last_avp.copy()
+    
+    # 用于收集预测的气动力数据（用于计算RMSE）
+    neural_fa_collection = []  # 存储所有预测的气动力
+    real_fa_collection = []    # 存储对应的真实气动力
+    fa_time_collection = []    # 存储对应的时间
 
-# 计算纯惯导求解结果
-matlab_pure_avps = eng.pure_ins_solve(matlab_imu, matlab.double( last_avp.tolist() ),nargout=1 )
-pure_avps = np.array(matlab_pure_avps) # num * 10
-pure_avps = pure_avps.T
-
-avp0_change = last_avp # 记录初值
-imu = np.array(matlab_imu) # 这个imu，就是拿截取以后的数据来算的
-# imu[:,6] = imu[:,6] - start_time_sec
-# imu = imu[adapt_end_index:,:]
-
-# UKF初始化
-# eng.SINS_dynamic_UKF153_init(nargout=0)
-matlab_kf, matlab_ins = eng.SINS_dynamic_UKF153_init(matlab.double(avp0_change.tolist()),nargout=2)
-
-# 3.动力学模型神经网络初始设置
-# 适应阶段最小二乘计算 a 的初始值
-dataset = 'neural-fly'
-features = ['v', 'q', 'pwm']  # 定义一个列表，包含三个特征名称
-modelname = f"{dataset}_dim-a-{dim_a}_{'-'.join(features)}"
-
-stopping_epoch = 900  # 取训练第900轮的模型最为最终模型
-final_model = mlmodel.load_model(modelname=modelname + '-epoch-' + str(stopping_epoch))  # 导入最终模型
-lam = 0.1
-
-adaptinput = data.X[0:adapt_end_index, :]
-adaptlabel = data.Y[0:adapt_end_index, :]
-X = torch.from_numpy(adaptinput)  # K x dim_x
-Y = torch.from_numpy(adaptlabel)  # K x dim_y
-Phi = final_model.phi(X)  # K x dim_a
-Phi_T = Phi.transpose(0, 1)  # dim_a x K
-A = torch.inverse(torch.mm(Phi_T, Phi) + lam * torch.eye(dim_a))  # dim_a x dim_a
-a0 = torch.mm(torch.mm(A, Phi_T), Y)  # dim_a x dim_y
-adapt_prediction = torch.mm(final_model.phi(X), a0)  # K x dim_y
-
-dynamic_a = a0.detach().numpy()
-p0 = 0.1
-dynamic_P = np.full((3, dim_a), 0.1)
-
-# 4.循环依次计算（总共取2000条数据计算）
-ukf_avps = np.empty((10, 1903)) # 10*1903
-ukf_avps[:,0] = last_avp
-loops = 2000
-first_index = adapt_end_index
-last_last_avp = last_avp.copy()
-
-# 初始化日志文件
-log_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-log_dir = os.path.join(project_root, "navigation_logs")
-if not os.path.exists(log_dir):
-    os.makedirs(log_dir)
-
-log_file = os.path.join(log_dir, f"navigation_log_{log_timestamp}.csv")
-log_header = [
+    # 初始化日志文件
+    log_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_dir = os.path.join(project_root, "navigation_logs")
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    
+    log_file = os.path.join(log_dir, f"navigation_log_{validation_file.replace('.csv', '')}_{log_timestamp}.csv")
+    log_header = [
     'loop_index', 'time',
     # UKF融合前状态（上一时刻）
     'ukf_prev_att_x', 'ukf_prev_att_y', 'ukf_prev_att_z',
@@ -276,13 +386,14 @@ log_header = [
     'T_sp', 'hover_throttle'
 ]
 
-log_csv = open(log_file, 'w', newline='', encoding='utf-8')
-log_writer = csv.writer(log_csv)
-log_writer.writerow(log_header)
-print(f"日志文件已创建: {log_file}")
-for loop_index in range(first_index,loops):
-    # 1)动力学取数据
-    inputdata = data.X[loop_index-1,:]
+    log_csv = open(log_file, 'w', newline='', encoding='utf-8')
+    log_writer = csv.writer(log_csv)
+    log_writer.writerow(log_header)
+    print(f"日志文件已创建: {log_file}")
+    
+    for loop_index in range(first_index, first_index + actual_loops):
+        # 1)动力学取数据
+        inputdata = data.X[loop_index-1,:]
     inputdata[0:3] = last_avp[0,3:6]
     # 添加一个姿态角转四元数的，使用 a2qua_subfun.m 函数
     matlab_qua = eng.a2qua_subfun(matlab.double(last_avp[0,0:3].tolist()),nargout=1)
@@ -348,6 +459,12 @@ for loop_index in range(first_index,loops):
     dynamic_vel_xyz = dynamic_vel.flatten()
     dynamic_vdot_xyz = dynamic_vdot.flatten()
     neural_fa_xyz = neural_fa.flatten()
+    
+    # 收集预测的气动力和对应的真实气动力（用于后续计算RMSE）
+    if loop_index-1 < len(real_fas):
+        neural_fa_collection.append(neural_fa_xyz)
+        real_fa_collection.append(real_fas[loop_index-1, :])
+        fa_time_collection.append(ts[loop_index-1] if loop_index-1 < len(ts) else loop_index * 0.02)
 
     # 3)UKF更新(需要输入和输出的  输入：比例增量、角增量，无需输入。动力学位置  输出：求解的avp)
     imu_index = loop_index - first_index
@@ -449,76 +566,70 @@ for loop_index in range(first_index,loops):
     ]
     log_writer.writerow(log_row)
     
-    # 每100个循环输出一次进度
-    if (loop_index - first_index) % 100 == 0:
-        log_csv.flush()  # 确保数据写入文件
-        print(f"已处理 {loop_index - first_index}/{loops - first_index} 个循环，日志已保存")
+        # 每100个循环输出一次进度
+        if (loop_index - first_index) % 100 == 0:
+            log_csv.flush()  # 确保数据写入文件
+            print(f"已处理 {loop_index - first_index}/{actual_loops} 个循环，日志已保存")
+        
+        last_last_avp = last_avp.copy()
+        last_avp = np.array(matlab_avp)
+        ukf_avps_index = loop_index - first_index
+        if ukf_avps_index < actual_loops:
+            ukf_avps[:,ukf_avps_index] = last_avp
+    
+    # 关闭日志文件
+    log_csv.close()
+    print(f"日志记录完成，文件已保存: {log_file}")
+    print(f"共记录了 {actual_loops} 个循环的数据")
 
-    # matlab_kf = eng.workspace['kf']
-    # matlab_ins = eng.workspace['ins']
-    # matlab_avp = eng.workspace['avp_kf']
-    last_last_avp = last_avp.copy()
-    last_avp = np.array(matlab_avp)
-    ukf_avps[:,loop_index-99] = last_avp
-
-# 关闭日志文件
-log_csv.close()
-print(f"日志记录完成，文件已保存: {log_file}")
-print(f"共记录了 {loops - first_index} 个循环的数据")
-
-# time.sleep(10)
-# 将ukf_avps转换到xyz
-ukf_avp_size = ukf_avps.shape
-pure_avp_size = pure_avps.shape
-ukf_avps_xyz = np.empty((9,ukf_avp_size[1]))
-pure_avps_xyz = np.empty((9,pure_avp_size[1]))
-for i in range(ukf_avp_size[1]):
-    ukf_avps_xyz[:,i] = np.array(eng.llh2xyz_subfun(matlab.double( ukf_avps[:,i].tolist() ) ))
-for i in range(pure_avp_size[1]):
-    pure_avps_xyz[:,i] = np.array(eng.llh2xyz_subfun(matlab.double( pure_avps[:,i].tolist() ) ))
+    # 将ukf_avps转换到xyz
+    ukf_avp_size = ukf_avps.shape
+    pure_avp_size = pure_avps.shape
+    ukf_avps_xyz = np.empty((9,ukf_avp_size[1]))
+    pure_avps_xyz = np.empty((9,pure_avp_size[1]))
+    for i in range(ukf_avp_size[1]):
+        ukf_avps_xyz[:,i] = np.array(eng.llh2xyz_subfun(matlab.double( ukf_avps[:,i].tolist() ) ))
+    for i in range(pure_avp_size[1]):
+        pure_avps_xyz[:,i] = np.array(eng.llh2xyz_subfun(matlab.double( pure_avps[:,i].tolist() ) ))
 
 
-# 参考结果
-y_real_data_total = np.empty((10,1903))
-y_real_data_total[3:6,0:1903] = real_v_row[:,100:2003]
-y_real_data_total[6:9,0:1903] = real_p_row[:,100:2003]
+    # 参考结果
+    # 动态计算数据长度
+    end_index = adapt_end_index + actual_loops
+    y_real_data_total = np.empty((10, actual_loops))
+    y_real_data_total[3:6, :] = real_v_row[:, adapt_end_index:end_index]
+    y_real_data_total[6:9, :] = real_p_row[:, adapt_end_index:end_index]
+    
+    # ========== 误差计算和RMSE统计 ==========
+    # 获取真实值的时间轴（从adapt_end_index开始）
+    real_time = ts[adapt_end_index:end_index]  # 真实值的时间轴
 
-# ========== 误差计算和RMSE统计 ==========
-# 获取真实值的时间轴（从adapt_end_index开始，对应100:2003的数据）
-real_time_start_index = adapt_end_index  # 100
-real_time_end_index = 2003
-real_time = ts[real_time_start_index:real_time_end_index]  # 真实值的时间轴
+    # UKF时间轴和数据
+    ukf_time = ukf_avps[9, :]  # UKF时间数据
+    ukf_vel_xyz = ukf_avps_xyz[3:6, :]  # UKF速度 (3 x N)
+    ukf_pos_xyz = ukf_avps_xyz[6:9, :]  # UKF位置 (3 x N)
 
-# UKF时间轴和数据
-ukf_time = ukf_avps[9, 0:-5]  # UKF时间数据
-ukf_vel_xyz = ukf_avps_xyz[3:6, 0:-5]  # UKF速度 (3 x N)
-ukf_pos_xyz = ukf_avps_xyz[6:9, 0:-5]  # UKF位置 (3 x N)
+    # 纯惯导数据设置
+    # 纯惯导的时间步长从MATLAB函数返回的imu数据中获取（通常是0.04秒，因为双子样）
+    pure_ins_time_step = 0.04  # 时间步长（秒）
+    pure_ins_start_time = start_time_sec  # 起始时间
+    # 纯惯导数据长度
+    actual_pure_avps_length = pure_avps_xyz.shape[1]
+    pure_ins_data_length = actual_pure_avps_length
+    
+    # 纯惯导时间轴
+    x2_data = np.arange(pure_ins_start_time, pure_ins_start_time + pure_ins_data_length * pure_ins_time_step, pure_ins_time_step)
+    
+    # 纯惯导时间轴和数据
+    pure_ins_time = x2_data[:pure_ins_data_length]  # 纯惯导时间轴
+    pure_ins_vel_xyz = pure_avps_xyz[3:6, 0:pure_ins_data_length]  # 纯惯导速度 (3 x N)
+    pure_ins_pos_xyz = pure_avps_xyz[6:9, 0:pure_ins_data_length]  # 纯惯导位置 (3 x N)
 
-# 纯惯导数据设置（需要先定义这些变量）
-pure_ins_time_step = 0.04  # 时间步长（秒）
-pure_ins_start_time = 2.0  # 起始时间（秒）
-pure_ins_end_time = 40.0  # 结束时间（秒）
-pure_ins_time_range = pure_ins_end_time - pure_ins_start_time  # 时间范围：38秒
-pure_ins_target_points = int(pure_ins_time_range / pure_ins_time_step)  # 38秒对应的点数：950
+    # 真实值数据（速度在索引3:6，位置在索引6:9）
+    real_vel_xyz = y_real_data_total[3:6, :]  # 真实速度 (3 x N)
+    real_pos_xyz = y_real_data_total[6:9, :]  # 真实位置 (3 x N)
 
-# 检查实际数据可用长度
-actual_pure_avps_length = pure_avps_xyz.shape[1]
-# 使用目标点数和实际数据长度中的较小值
-pure_ins_data_length = min(pure_ins_target_points, actual_pure_avps_length)
-
-# 纯惯导时间轴：从2秒开始，到38秒结束，每0.04秒一个点
-x2_data = np.arange(pure_ins_start_time, pure_ins_start_time + pure_ins_data_length * pure_ins_time_step, pure_ins_time_step)
-
-# 纯惯导时间轴和数据
-pure_ins_time = x2_data[:pure_ins_data_length]  # 纯惯导时间轴
-pure_ins_vel_xyz = pure_avps_xyz[3:6, 0:pure_ins_data_length]  # 纯惯导速度 (3 x N)
-pure_ins_pos_xyz = pure_avps_xyz[6:9, 0:pure_ins_data_length]  # 纯惯导位置 (3 x N)
-
-# 真实值数据（速度在索引3:6，位置在索引6:9）
-real_vel_xyz = y_real_data_total[3:6, 0:1903]  # 真实速度 (3 x N)
-real_pos_xyz = y_real_data_total[6:9, 0:1903]  # 真实位置 (3 x N)
-
-def calculate_rmse(calc_time, calc_data, real_time, real_data):
+    def calculate_rmse(calc_time, calc_data, real_time, real_data):
     """
     根据时间匹配计算值和真实值，计算RMSE
     
@@ -573,112 +684,225 @@ def calculate_rmse(calc_time, calc_data, real_time, real_data):
     
     return rmse, matched_calc, matched_real, matched_time
 
-# 计算UKF的RMSE
-print("\n========== UKF融合解误差分析 ==========")
-ukf_vel_rmse, ukf_vel_calc, ukf_vel_real, ukf_vel_time = calculate_rmse(
-    ukf_time, ukf_vel_xyz, real_time, real_vel_xyz)
-ukf_pos_rmse, ukf_pos_calc, ukf_pos_real, ukf_pos_time = calculate_rmse(
-    ukf_time, ukf_pos_xyz, real_time, real_pos_xyz)
+    # 计算UKF的RMSE
+    print("\n========== UKF融合解误差分析 ==========")
+    ukf_vel_rmse, ukf_vel_calc, ukf_vel_real, ukf_vel_time = calculate_rmse(
+        ukf_time, ukf_vel_xyz, real_time, real_vel_xyz)
+    ukf_pos_rmse, ukf_pos_calc, ukf_pos_real, ukf_pos_time = calculate_rmse(
+        ukf_time, ukf_pos_xyz, real_time, real_pos_xyz)
 
-print("速度RMSE (m/s):")
-print(f"  东向: {ukf_vel_rmse[0]:.6f}")
-print(f"  北向: {ukf_vel_rmse[1]:.6f}")
-print(f"  天向: {ukf_vel_rmse[2]:.6f}")
-print(f"  总体: {np.sqrt(np.mean(ukf_vel_rmse**2)):.6f}")
+    print("速度RMSE (m/s):")
+    print(f"  东向: {ukf_vel_rmse[0]:.6f}")
+    print(f"  北向: {ukf_vel_rmse[1]:.6f}")
+    print(f"  天向: {ukf_vel_rmse[2]:.6f}")
+    print(f"  总体: {np.sqrt(np.mean(ukf_vel_rmse**2)):.6f}")
+    
+    print("\n位置RMSE (m):")
+    print(f"  东向: {ukf_pos_rmse[0]:.6f}")
+    print(f"  北向: {ukf_pos_rmse[1]:.6f}")
+    print(f"  天向: {ukf_pos_rmse[2]:.6f}")
+    print(f"  总体: {np.sqrt(np.mean(ukf_pos_rmse**2)):.6f}")
+    
+    # 计算纯惯导的RMSE
+    print("\n========== 纯惯导解误差分析 ==========")
+    pure_vel_rmse, pure_vel_calc, pure_vel_real, pure_vel_time = calculate_rmse(
+        pure_ins_time, pure_ins_vel_xyz, real_time, real_vel_xyz)
+    pure_pos_rmse, pure_pos_calc, pure_pos_real, pure_pos_time = calculate_rmse(
+        pure_ins_time, pure_ins_pos_xyz, real_time, real_pos_xyz)
+    
+    print("速度RMSE (m/s):")
+    print(f"  东向: {pure_vel_rmse[0]:.6f}")
+    print(f"  北向: {pure_vel_rmse[1]:.6f}")
+    print(f"  天向: {pure_vel_rmse[2]:.6f}")
+    print(f"  总体: {np.sqrt(np.mean(pure_vel_rmse**2)):.6f}")
+    
+    print("\n位置RMSE (m):")
+    print(f"  东向: {pure_pos_rmse[0]:.6f}")
+    print(f"  北向: {pure_pos_rmse[1]:.6f}")
+    print(f"  天向: {pure_pos_rmse[2]:.6f}")
+    print(f"  总体: {np.sqrt(np.mean(pure_pos_rmse**2)):.6f}")
+    
+    # 计算气动力RMSE
+    print("\n========== 气动力误差分析 ==========")
+    if len(neural_fa_collection) > 0 and len(real_fa_collection) > 0:
+        neural_fa_array = np.array(neural_fa_collection)  # N x 3
+        real_fa_array = np.array(real_fa_collection)      # N x 3
+        
+        # 计算误差
+        fa_error = neural_fa_array - real_fa_array
+        
+        # 计算RMSE（每个分量）
+        fa_rmse = np.sqrt(np.mean(fa_error**2, axis=0))  # 3个分量的RMSE
+        fa_rmse_total = np.sqrt(np.mean(fa_error**2))     # 总体RMSE
+        
+        print("气动力RMSE (N):")
+        print(f"  X方向: {fa_rmse[0]:.6f}")
+        print(f"  Y方向: {fa_rmse[1]:.6f}")
+        print(f"  Z方向: {fa_rmse[2]:.6f}")
+        print(f"  总体: {fa_rmse_total:.6f}")
+    else:
+        print("警告: 没有收集到足够的气动力数据")
+        fa_rmse = np.array([0.0, 0.0, 0.0])
+        fa_rmse_total = 0.0
+    
+    # ========== 记录实验参数和指标到MLflow ==========
+    # 准备模型参数
+    model_params = {
+        'model_dataset': dataset,
+        'model_dim_a': dim_a,
+        'model_features': '-'.join(features),
+        'model_name': modelname,
+        'model_stopping_epoch': stopping_epoch,
+        'model_file': f"{modelname}-epoch-{stopping_epoch}.pth"
+    }
 
-print("\n位置RMSE (m):")
-print(f"  东向: {ukf_pos_rmse[0]:.6f}")
-print(f"  北向: {ukf_pos_rmse[1]:.6f}")
-print(f"  天向: {ukf_pos_rmse[2]:.6f}")
-print(f"  总体: {np.sqrt(np.mean(ukf_pos_rmse**2)):.6f}")
+    # 准备滤波参数（使用实际配置的值）
+    filter_params = {
+        'filter_solve_type': solver_type,  # 1=KF, 2=PF
+        'filter_numPar': numPar,
+        'filter_lambda1': lambda1,
+        'filter_R': r0,  # 从配置中读取的r0值
+        'filter_Q': q0,  # 从配置中读取的q0值
+    }
 
-# 计算纯惯导的RMSE
-print("\n========== 纯惯导解误差分析 ==========")
-pure_vel_rmse, pure_vel_calc, pure_vel_real, pure_vel_time = calculate_rmse(
-    pure_ins_time, pure_ins_vel_xyz, real_time, real_vel_xyz)
-pure_pos_rmse, pure_pos_calc, pure_pos_real, pure_pos_time = calculate_rmse(
-    pure_ins_time, pure_ins_pos_xyz, real_time, real_pos_xyz)
-
-print("速度RMSE (m/s):")
-print(f"  东向: {pure_vel_rmse[0]:.6f}")
-print(f"  北向: {pure_vel_rmse[1]:.6f}")
-print(f"  天向: {pure_vel_rmse[2]:.6f}")
-print(f"  总体: {np.sqrt(np.mean(pure_vel_rmse**2)):.6f}")
-
-print("\n位置RMSE (m):")
-print(f"  东向: {pure_pos_rmse[0]:.6f}")
-print(f"  北向: {pure_pos_rmse[1]:.6f}")
-print(f"  天向: {pure_pos_rmse[2]:.6f}")
-print(f"  总体: {np.sqrt(np.mean(pure_pos_rmse**2)):.6f}")
-
-# 创建3行3列的子图网格，figsize控制画布大小（宽15，高12）
-# Y轴标签：姿态、速度、位置（速度单位使用LaTeX格式显示上标）
-Ylabels = [
-    "姿态x[°]", "姿态y[°]", "姿态z[°]",
-    "东向速度 /(m·$s^{-1}$)", "北向速度 /(m·$s^{-1}$)", "天向速度 /(m·$s^{-1}$)",
-    "东向位置 /m", "北向位置 /m", "天向位置 /m"
-]
-# 创建3x3的子图布局
-plt.figure(figsize=(15, 12))  # 整体画布大小
-
-# 使用各自的时间轴（不进行对齐）
-x_data = ukf_avps[9, 0:-5]  # UKF时间数据
-
-for i in range(9):
+    # 准备UKF参数
+    ukf_params = {}
+    if ukf_Qk is not None:
+        ukf_params['Qk'] = ukf_Qk
+    if ukf_Rk is not None:
+        ukf_params['Rk'] = ukf_Rk
+    if ukf_Pxk is not None:
+        ukf_params['Pxk'] = ukf_Pxk
+    
+    # 准备数据集参数
+    dataset_params = {
+        'dataset_folder': validation_config['dataset_folder'],
+        'validation_file': validation_file,
+        'adapt_end_index': adapt_end_index,
+        'adapt_duration': adapt_duration,
+        'validation_length': actual_loops,
+    }
+    
+    # 准备指标
+    metrics = {
+    # UKF速度RMSE
+    'ukf_vel_rmse_east': float(ukf_vel_rmse[0]),
+    'ukf_vel_rmse_north': float(ukf_vel_rmse[1]),
+    'ukf_vel_rmse_up': float(ukf_vel_rmse[2]),
+    'ukf_vel_rmse_total': float(np.sqrt(np.mean(ukf_vel_rmse**2))),
+    # UKF位置RMSE
+    'ukf_pos_rmse_east': float(ukf_pos_rmse[0]),
+    'ukf_pos_rmse_north': float(ukf_pos_rmse[1]),
+    'ukf_pos_rmse_up': float(ukf_pos_rmse[2]),
+    'ukf_pos_rmse_total': float(np.sqrt(np.mean(ukf_pos_rmse**2))),
+    # 纯惯导速度RMSE
+    'pure_ins_vel_rmse_east': float(pure_vel_rmse[0]),
+    'pure_ins_vel_rmse_north': float(pure_vel_rmse[1]),
+    'pure_ins_vel_rmse_up': float(pure_vel_rmse[2]),
+    'pure_ins_vel_rmse_total': float(np.sqrt(np.mean(pure_vel_rmse**2))),
+    # 纯惯导位置RMSE
+    'pure_ins_pos_rmse_east': float(pure_pos_rmse[0]),
+    'pure_ins_pos_rmse_north': float(pure_pos_rmse[1]),
+    'pure_ins_pos_rmse_up': float(pure_pos_rmse[2]),
+    'pure_ins_pos_rmse_total': float(np.sqrt(np.mean(pure_pos_rmse**2))),
+    # 气动力RMSE
+    'fa_rmse_x': float(fa_rmse[0]),
+    'fa_rmse_y': float(fa_rmse[1]),
+    'fa_rmse_z': float(fa_rmse[2]),
+        'fa_rmse_total': float(fa_rmse_total),
+    }
+    
+    # 记录参数和指标
+    log_experiment_params(
+        model_params=model_params,
+        filter_params=filter_params,
+        ukf_params=ukf_params,
+        dataset_params=dataset_params
+    )
+    log_experiment_metrics(metrics)
+    
+    # 记录模型文件
+    model_file_path = os.path.join(project_root, 'models', f"{modelname}-epoch-{stopping_epoch}.pth")
+    log_model_file(model_file_path)
+    
+    print("\n========== MLflow记录完成 ==========")
+    
+    # 创建3行3列的子图网格，figsize控制画布大小（宽15，高12）
+    # Y轴标签：姿态、速度、位置（速度单位使用LaTeX格式显示上标）
+    Ylabels = [
+        "姿态x[°]", "姿态y[°]", "姿态z[°]",
+        "东向速度 /(m·$s^{-1}$)", "北向速度 /(m·$s^{-1}$)", "天向速度 /(m·$s^{-1}$)",
+        "东向位置 /m", "北向位置 /m", "天向位置 /m"
+    ]
+    # 创建3x3的子图布局
+    plt.figure(figsize=(15, 12))  # 整体画布大小
+    
+    # 使用各自的时间轴（不进行对齐）
+    x_data = ukf_avps[9, :]  # UKF时间数据
+    
+    for i in range(9):
     # 创建子图（3行3列，第i+1个子图）
     plt.subplot(3, 3, i + 1)
     
-    # 姿态 速度 位置绘图 - 使用各自的时间轴和数据
-    y_data = ukf_avps_xyz[i, 0:-5]
-    # 纯惯导数据：截取到指定长度（48秒对应的数据点，或实际可用的数据点）
-    y2_data = pure_avps_xyz[i, 0:pure_ins_data_length]
+        # 姿态 速度 位置绘图 - 使用各自的时间轴和数据
+        y_data = ukf_avps_xyz[i, :]
+        # 纯惯导数据：截取到指定长度
+        y2_data = pure_avps_xyz[i, 0:pure_ins_data_length]
     
-    # 确保时间轴和数据长度一致
-    actual_pure_length = min(len(x2_data), len(y2_data))
-    x2_data_plot = x2_data[:actual_pure_length]
-    y2_data_plot = y2_data[:actual_pure_length]
-    
-    # UKF结果 - 实线，蓝色
-    plt.plot(x_data, y_data,
-             linestyle='-',  # 实线
-             color='#2E86AB',  # 蓝色
-             linewidth=2.0,  # 线宽
-             alpha=0.9,  # 透明度
-             label="UKF融合解")  # 标签
-    
-    # Pure INS结果 - 虚线，红色
-    plt.plot(x2_data_plot, y2_data_plot,
-             linestyle='--',  # 虚线
-             color='#F24236',  # 红色
-             linewidth=2.0,  # 线宽
-             alpha=0.9,  # 透明度
-             label="纯惯导解")  # 标签
-    
-    # 真实值 - 点划线，绿色
-    if i > 2 and i < 9:
-        y_real_data = y_real_data_total[i, 0:-5]
-        plt.plot(x_data, y_real_data,
-                 linestyle='-.',  # 点划线
-                 color='#06A77D',  # 绿色
+        # 确保时间轴和数据长度一致
+        actual_pure_length = min(len(x2_data), len(y2_data))
+        x2_data_plot = x2_data[:actual_pure_length]
+        y2_data_plot = y2_data[:actual_pure_length]
+        
+        # UKF结果 - 实线，蓝色
+        plt.plot(x_data, y_data,
+                 linestyle='-',  # 实线
+                 color='#2E86AB',  # 蓝色
                  linewidth=2.0,  # 线宽
                  alpha=0.9,  # 透明度
-                 label="参考值")  # 标签
+                 label="UKF融合解")  # 标签
+        
+        # Pure INS结果 - 虚线，红色
+        plt.plot(x2_data_plot, y2_data_plot,
+                 linestyle='--',  # 虚线
+                 color='#F24236',  # 红色
+                 linewidth=2.0,  # 线宽
+                 alpha=0.9,  # 透明度
+                 label="纯惯导解")  # 标签
+        
+        # 真实值 - 点划线，绿色
+        if i > 2 and i < 9:
+            y_real_data = y_real_data_total[i, :]
+            plt.plot(x_data, y_real_data,
+                     linestyle='-.',  # 点划线
+                     color='#06A77D',  # 绿色
+                     linewidth=2.0,  # 线宽
+                     alpha=0.9,  # 透明度
+                     label="参考值")  # 标签
+    
+        # 子图标题和标签
+        plt.xlabel('时间 /s', fontsize=10)
+        # Y轴标签（速度单位中的上标使用LaTeX数学模式）
+        plt.ylabel(Ylabels[i], fontsize=10)
+    
+        # 添加图例和网格
+        plt.legend(fontsize=9)
+        plt.grid(alpha=0.3)
+    
+    # 调整子图间距，避免重叠
+    plt.tight_layout()
+    
+    # 显示图形
+    plt.show()
 
-    # 子图标题和标签
-    plt.xlabel('时间 /s', fontsize=10)
-    # Y轴标签（速度单位中的上标使用LaTeX数学模式）
-    plt.ylabel(Ylabels[i], fontsize=10)
+    # （可选）保存图片到本地（分辨率300dpi，无白边）
+    # plt.savefig(f"{validation_file.replace('.csv', '')}_result.png", dpi=300, bbox_inches='tight')
+    plt.close('all')  # 关闭所有图形，避免内存积累
+    
+    # 结束当前MLflow运行
+    end_run()
+    print(f"实验记录已保存到MLflow: {validation_file}")
 
-    # 添加图例和网格
-    plt.legend(fontsize=9)
-    plt.grid(alpha=0.3)
-
-# 调整子图间距，避免重叠
-plt.tight_layout()
-
-# 显示图形
-plt.show()
-
-# （可选）保存图片到本地（分辨率300dpi，无白边）
-# plt.savefig("10x100数组绘图.png", dpi=300, bbox_inches='tight')
+# 关闭MATLAB引擎（在所有实验完成后）
 eng.quit()
+print("\n所有实验完成！")
