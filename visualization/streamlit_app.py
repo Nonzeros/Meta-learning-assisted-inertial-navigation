@@ -155,7 +155,7 @@ def plot_time_series(log_df, run_name: str):
     """
     绘制时间序列对比图：位置、速度、姿态
     对于速度和位置，xyz三个方向分别各一张图
-    每张图包含：惯导预测（UKF融合前）、UKF融合结果、真实结果
+    每张图包含：纯惯导、UKF融合结果、真实结果
     
     参考main.py中的绘图逻辑：
     - 排除最后几个数据点（exclude_last）
@@ -200,15 +200,15 @@ def plot_time_series(log_df, run_name: str):
                     line=dict(color='#2E86AB', width=2)
                 ))
         
-        # 惯导预测位置（UKF融合前）- 使用日志文件中的ins_pred_pos_x/y/z
-        ins_col = f'ins_pred_pos_{dir}'
-        if ins_col in log_df_plot.columns:
-            valid_mask = pd.notna(log_df_plot[ins_col]) & (log_df_plot[ins_col] != 0)
+        # 纯惯导位置 - 使用日志文件中的pure_ins_px/py/pz
+        pure_col = f'pure_ins_p{dir}'
+        if pure_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[pure_col]) & (log_df_plot[pure_col] != 0)
             if valid_mask.any():
                 fig.add_trace(go.Scatter(
                     x=log_df_plot.loc[valid_mask, time_col],
-                    y=log_df_plot.loc[valid_mask, ins_col],
-                    name='惯导预测',
+                    y=log_df_plot.loc[valid_mask, pure_col],
+                    name='纯惯导',
                     mode='lines',
                     line=dict(color='#F24236', width=2, dash='dash')
                 ))
@@ -256,15 +256,15 @@ def plot_time_series(log_df, run_name: str):
                     line=dict(color='#2E86AB', width=2)
                 ))
         
-        # 惯导预测速度（UKF融合前）- 使用日志文件中的ins_pred_vx/vy/vz
-        ins_col = f'ins_pred_v{dir}'
-        if ins_col in log_df_plot.columns:
-            valid_mask = pd.notna(log_df_plot[ins_col])
+        # 纯惯导速度 - 使用日志文件中的pure_ins_vx/vy/vz
+        pure_col = f'pure_ins_v{dir}'
+        if pure_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[pure_col])
             if valid_mask.any():
                 fig.add_trace(go.Scatter(
                     x=log_df_plot.loc[valid_mask, time_col],
-                    y=log_df_plot.loc[valid_mask, ins_col],
-                    name='惯导预测',
+                    y=log_df_plot.loc[valid_mask, pure_col],
+                    name='纯惯导',
                     mode='lines',
                     line=dict(color='#F24236', width=2, dash='dash')
                 ))
@@ -312,15 +312,15 @@ def plot_time_series(log_df, run_name: str):
                     line=dict(color='#2E86AB', width=2)
                 ))
         
-        # 惯导预测姿态（UKF融合前）- 使用日志文件中的ins_pred_att_x/y/z
-        ins_col = f'ins_pred_att_{dir}'
-        if ins_col in log_df_plot.columns:
-            valid_mask = pd.notna(log_df_plot[ins_col])
+        # 纯惯导姿态 - 使用日志文件中的pure_ins_att_x/y/z
+        pure_col = f'pure_ins_att_{dir}'
+        if pure_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[pure_col])
             if valid_mask.any():
                 fig.add_trace(go.Scatter(
                     x=log_df_plot.loc[valid_mask, time_col],
-                    y=log_df_plot.loc[valid_mask, ins_col],
-                    name='惯导预测',
+                    y=log_df_plot.loc[valid_mask, pure_col],
+                    name='纯惯导',
                     mode='lines',
                     line=dict(color='#F24236', width=2, dash='dash')
                 ))

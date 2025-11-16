@@ -1,10 +1,14 @@
 % % close all,clear
 % global glv
-function [imu,avp0] = av2imu_main3(start_index)
+function [imu,avp0] = av2imu_main3(start_index, excel_filename)
 glvs;
 
 % 读取处理过后，只有位置、速度、姿态的数据
-data = readtable('apts_expi_70psin2t.xlsx');
+% 如果未提供文件名，使用默认文件名（向后兼容）
+if nargin < 2
+    excel_filename = 'apts_expi_70psin2t.xlsx';
+end
+data = readtable(excel_filename);
 % data = data(101:end,:);
 real_pav_q = table2array(data);
 real_pav_att = zeros(length(real_pav_q),10);
