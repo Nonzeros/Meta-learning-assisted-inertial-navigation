@@ -6,6 +6,7 @@ import numpy as np
 import torch
 import csv
 from datetime import datetime
+from scipy.interpolate import interp1d
 
 import utils
 import mlmodel
@@ -481,20 +482,19 @@ for i in range(pure_avp_size[1]):
 y_real_data_total = np.empty((10,1903))
 y_real_data_total[3:6,0:1903] = real_v_row[:,100:2003]
 y_real_data_total[6:9,0:1903] = real_p_row[:,100:2003]
-# 创建3行3列的子图网格，figsize控制画布大小（宽15，高12）
-# Y轴标签：姿态、速度、位置（速度单位使用LaTeX格式显示上标）
-Ylabels = [
-    "姿态x[°]", "姿态y[°]", "姿态z[°]",
-    "东向速度 /(m·$s^{-1}$)", "北向速度 /(m·$s^{-1}$)", "天向速度 /(m·$s^{-1}$)",
-    "东向位置 /m", "北向位置 /m", "天向位置 /m"
-]
-# 创建3x3的子图布局
-plt.figure(figsize=(15, 12))  # 整体画布大小
 
-# 使用各自的时间轴（不进行对齐）
-x_data = ukf_avps[9, 0:-5]  # UKF时间数据
+# ========== 误差计算和RMSE统计 ==========
+# 获取真实值的时间轴（从adapt_end_index开始，对应100:2003的数据）
+real_time_start_index = adapt_end_index  # 100
+real_time_end_index = 2003
+real_time = ts[real_time_start_index:real_time_end_index]  # 真实值的时间轴
 
-# 纯惯导数据设置
+# UKF时间轴和数据
+ukf_time = ukf_avps[9, 0:-5]  # UKF时间数据
+ukf_vel_xyz = ukf_avps_xyz[3:6, 0:-5]  # UKF速度 (3 x N)
+ukf_pos_xyz = ukf_avps_xyz[6:9, 0:-5]  # UKF位置 (3 x N)
+
+# 纯惯导数据设置（需要先定义这些变量）
 pure_ins_time_step = 0.04  # 时间步长（秒）
 pure_ins_start_time = 2.0  # 起始时间（秒）
 pure_ins_end_time = 40.0  # 结束时间（秒）
@@ -509,10 +509,124 @@ pure_ins_data_length = min(pure_ins_target_points, actual_pure_avps_length)
 # 纯惯导时间轴：从2秒开始，到38秒结束，每0.04秒一个点
 x2_data = np.arange(pure_ins_start_time, pure_ins_start_time + pure_ins_data_length * pure_ins_time_step, pure_ins_time_step)
 
+# 纯惯导时间轴和数据
+pure_ins_time = x2_data[:pure_ins_data_length]  # 纯惯导时间轴
+pure_ins_vel_xyz = pure_avps_xyz[3:6, 0:pure_ins_data_length]  # 纯惯导速度 (3 x N)
+pure_ins_pos_xyz = pure_avps_xyz[6:9, 0:pure_ins_data_length]  # 纯惯导位置 (3 x N)
+
+# 真实值数据（速度在索引3:6，位置在索引6:9）
+real_vel_xyz = y_real_data_total[3:6, 0:1903]  # 真实速度 (3 x N)
+real_pos_xyz = y_real_data_total[6:9, 0:1903]  # 真实位置 (3 x N)
+
+def calculate_rmse(calc_time, calc_data, real_time, real_data):
+    """
+    根据时间匹配计算值和真实值，计算RMSE
+    
+    参数:
+        calc_time: 计算值的时间轴 (1D array)
+        calc_data: 计算值数据 (3 x N 或 1 x N)
+        real_time: 真实值的时间轴 (1D array)
+        real_data: 真实值数据 (3 x N 或 1 x N)
+    
+    返回:
+        rmse: RMSE值（如果是3维数据，返回3个分量的RMSE）
+        matched_calc: 匹配后的计算值
+        matched_real: 匹配后的真实值
+        matched_time: 匹配后的时间轴
+    """
+    # 找到共同的时间范围
+    time_min = max(calc_time.min(), real_time.min())
+    time_max = min(calc_time.max(), real_time.max())
+    
+    # 创建匹配的时间轴（使用真实值的时间轴作为基准，在共同时间范围内）
+    time_mask = (real_time >= time_min) & (real_time <= time_max)
+    matched_time = real_time[time_mask]
+    real_indices = np.where(time_mask)[0]
+    
+    # 确保calc_data是2D数组
+    if calc_data.ndim == 1:
+        calc_data = calc_data.reshape(1, -1)
+    if real_data.ndim == 1:
+        real_data = real_data.reshape(1, -1)
+    
+    # 对每个维度进行插值
+    matched_calc = np.zeros((calc_data.shape[0], len(matched_time)))
+    matched_real = np.zeros((real_data.shape[0], len(matched_time)))
+    
+    for i in range(calc_data.shape[0]):
+        # 插值计算值到匹配时间轴
+        interp_func = interp1d(calc_time, calc_data[i, :], 
+                              kind='linear', bounds_error=False, fill_value='extrapolate')
+        matched_calc[i, :] = interp_func(matched_time)
+        
+        # 提取对应的真实值（matched_time 和 real_indices 长度应该一致）
+        matched_real[i, :] = real_data[i, real_indices]
+    
+    # 计算误差
+    error = matched_calc - matched_real
+    
+    # 计算RMSE（每个分量的RMSE）
+    if error.shape[0] == 1:
+        rmse = np.sqrt(np.mean(error**2, axis=1))[0]
+    else:
+        rmse = np.sqrt(np.mean(error**2, axis=1))  # 每个分量的RMSE
+    
+    return rmse, matched_calc, matched_real, matched_time
+
+# 计算UKF的RMSE
+print("\n========== UKF融合解误差分析 ==========")
+ukf_vel_rmse, ukf_vel_calc, ukf_vel_real, ukf_vel_time = calculate_rmse(
+    ukf_time, ukf_vel_xyz, real_time, real_vel_xyz)
+ukf_pos_rmse, ukf_pos_calc, ukf_pos_real, ukf_pos_time = calculate_rmse(
+    ukf_time, ukf_pos_xyz, real_time, real_pos_xyz)
+
+print("速度RMSE (m/s):")
+print(f"  东向: {ukf_vel_rmse[0]:.6f}")
+print(f"  北向: {ukf_vel_rmse[1]:.6f}")
+print(f"  天向: {ukf_vel_rmse[2]:.6f}")
+print(f"  总体: {np.sqrt(np.mean(ukf_vel_rmse**2)):.6f}")
+
+print("\n位置RMSE (m):")
+print(f"  东向: {ukf_pos_rmse[0]:.6f}")
+print(f"  北向: {ukf_pos_rmse[1]:.6f}")
+print(f"  天向: {ukf_pos_rmse[2]:.6f}")
+print(f"  总体: {np.sqrt(np.mean(ukf_pos_rmse**2)):.6f}")
+
+# 计算纯惯导的RMSE
+print("\n========== 纯惯导解误差分析 ==========")
+pure_vel_rmse, pure_vel_calc, pure_vel_real, pure_vel_time = calculate_rmse(
+    pure_ins_time, pure_ins_vel_xyz, real_time, real_vel_xyz)
+pure_pos_rmse, pure_pos_calc, pure_pos_real, pure_pos_time = calculate_rmse(
+    pure_ins_time, pure_ins_pos_xyz, real_time, real_pos_xyz)
+
+print("速度RMSE (m/s):")
+print(f"  东向: {pure_vel_rmse[0]:.6f}")
+print(f"  北向: {pure_vel_rmse[1]:.6f}")
+print(f"  天向: {pure_vel_rmse[2]:.6f}")
+print(f"  总体: {np.sqrt(np.mean(pure_vel_rmse**2)):.6f}")
+
+print("\n位置RMSE (m):")
+print(f"  东向: {pure_pos_rmse[0]:.6f}")
+print(f"  北向: {pure_pos_rmse[1]:.6f}")
+print(f"  天向: {pure_pos_rmse[2]:.6f}")
+print(f"  总体: {np.sqrt(np.mean(pure_pos_rmse**2)):.6f}")
+
+# 创建3行3列的子图网格，figsize控制画布大小（宽15，高12）
+# Y轴标签：姿态、速度、位置（速度单位使用LaTeX格式显示上标）
+Ylabels = [
+    "姿态x[°]", "姿态y[°]", "姿态z[°]",
+    "东向速度 /(m·$s^{-1}$)", "北向速度 /(m·$s^{-1}$)", "天向速度 /(m·$s^{-1}$)",
+    "东向位置 /m", "北向位置 /m", "天向位置 /m"
+]
+# 创建3x3的子图布局
+plt.figure(figsize=(15, 12))  # 整体画布大小
+
+# 使用各自的时间轴（不进行对齐）
+x_data = ukf_avps[9, 0:-5]  # UKF时间数据
+
 for i in range(9):
-    # 创建子图
-    # plt.subplot(3, 3, i + 1)  # 子图位置：行、列、索引
-    plt.figure(i)
+    # 创建子图（3行3列，第i+1个子图）
+    plt.subplot(3, 3, i + 1)
     
     # 姿态 速度 位置绘图 - 使用各自的时间轴和数据
     y_data = ukf_avps_xyz[i, 0:-5]
