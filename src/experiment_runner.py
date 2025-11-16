@@ -162,8 +162,12 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
         dynamic_P = np.full((3, dim_a), 0.1)
         
         # 7. 循环计算
+        # 根据实际数据长度自适应确定循环范围
+        # imu数组的长度决定了实际可以处理的循环次数
+        imu_length = imu.shape[0]
         validation_data_length = len(ts) - adapt_end_index
-        loops = validation_data_length
+        # 循环次数取imu长度和validation_data_length的较小值，确保不会越界
+        loops = min(imu_length, validation_data_length)
         first_index = adapt_end_index
         
         ukf_avps = np.empty((10, loops + 1))
@@ -221,9 +225,12 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
         log_writer.writerow(log_header)
         
         # 主循环（与原代码相同）
-        # 循环范围：从adapt_end_index到len(ts)，对应validation_data_length个时间步
+        # 循环范围：从adapt_end_index开始，执行loops次（根据imu数组长度自适应确定）
         for loop_index in range(first_index, first_index + loops):
             # 动力学取数据
+            # 添加边界检查，确保不会越界
+            if loop_index - 1 >= len(data.X):
+                break  # 如果超出数据范围，提前退出循环
             inputdata = data.X[loop_index-1,:].copy()
             inputdata[0:3] = last_avp[0,3:6]
             matlab_qua = eng.a2qua_subfun(matlab.double(last_avp[0,0:3].tolist()), nargout=1)
