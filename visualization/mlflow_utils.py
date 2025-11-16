@@ -17,6 +17,21 @@ def setup_mlflow_experiment(experiment_name: Optional[str] = None, tracking_uri:
         experiment_name: 实验名称，如果为None则使用日期命名
         tracking_uri: MLflow跟踪URI，默认为本地文件系统
     """
+    # 将路径转换为MLflow支持的URI格式
+    # 如果是绝对路径，需要添加file://前缀
+    if os.path.isabs(tracking_uri):
+        # Windows路径需要file:///（三个斜杠），Unix路径需要file://（两个斜杠）
+        if os.name == 'nt':  # Windows
+            # 将反斜杠转换为正斜杠，并添加file:///前缀
+            normalized_path = tracking_uri.replace('\\', '/')
+            # 处理Windows盘符（如 F:/ -> /F:/）
+            if ':' in normalized_path:
+                parts = normalized_path.split(':', 1)
+                normalized_path = f"/{parts[0]}:{parts[1]}"
+            tracking_uri = f"file://{normalized_path}"
+        else:  # Unix/Linux/Mac
+            tracking_uri = f"file://{tracking_uri}"
+    
     # 设置跟踪URI
     mlflow.set_tracking_uri(tracking_uri)
     

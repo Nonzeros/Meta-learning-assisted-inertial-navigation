@@ -209,7 +209,7 @@ def real_time_adaptation3(data_num,a0,px,pw,phi_net, h_net, input_data, label_da
 
 ## 结合INS一步更新计算动力学
 def validation_realtime(phi_net, h_net, inputdata: np.ndarray,outputlabel: np.ndarray, vel_data,pos_data, options,
-                        dynamic_a,dynamic_P,px,pw, q0=None, r0=None):
+                        dynamic_a,dynamic_P,px,pw):
     # inputdata是一行一行的
     with torch.no_grad():
 
@@ -221,13 +221,10 @@ def validation_realtime(phi_net, h_net, inputdata: np.ndarray,outputlabel: np.nd
         span = 1
         # 滤波参数
         B = span # 仿真，每次取数为span，现在为1，就是每次取一个数字来仿真
-        # 滤波参数（从options或参数中获取，如果未提供则使用默认值）
-        if r0 is None:
-            r0 = options.get('r0', 0.1)
-        if q0 is None:
-            q0 = options.get('q0', 0.1)
+        # 滤波参数
+        r0 = 0.1
         R = np.full((B,B),r0)
-        Q = np.full((3, dim_a), q0)
+        Q = np.full((3, dim_a), 0.1)
         lambda1 = options['lambda1']
         if solve_type == 1:
             Y_bar,ak,Pk = real_time_adaptation(span,dynamic_a,dynamic_P,Q,R,
