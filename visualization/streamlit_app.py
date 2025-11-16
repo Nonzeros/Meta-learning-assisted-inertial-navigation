@@ -10,6 +10,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 from datetime import datetime
 import os
+import glob
 
 
 def load_mlflow_experiments(tracking_uri: str = "./mlruns"):
@@ -19,6 +20,17 @@ def load_mlflow_experiments(tracking_uri: str = "./mlruns"):
     参数:
         tracking_uri: MLflow跟踪URI
     """
+    # 转换URI格式（如果是绝对路径）
+    if os.path.isabs(tracking_uri):
+        if os.name == 'nt':  # Windows
+            normalized_path = tracking_uri.replace('\\', '/')
+            if ':' in normalized_path:
+                parts = normalized_path.split(':', 1)
+                normalized_path = f"/{parts[0]}:{parts[1]}"
+            tracking_uri = f"file://{normalized_path}"
+        else:
+            tracking_uri = f"file://{tracking_uri}"
+    
     mlflow.set_tracking_uri(tracking_uri)
     
     experiments = []
@@ -45,11 +57,295 @@ def load_mlflow_experiments(tracking_uri: str = "./mlruns"):
                 for key, value in run.data.metrics.items():
                     run_data[f'metric_{key}'] = value
                 
+                # 获取日志文件路径（如果存在）
+                log_file_param = run.data.params.get('log_file', None)
+                if log_file_param:
+                    run_data['log_file'] = log_file_param
+                    # 尝试从artifact获取完整路径
+                    artifact_uri = run.info.artifact_uri
+                    if artifact_uri:
+                        run_data['artifact_uri'] = artifact_uri
+                
                 experiments.append(run_data)
     except Exception as e:
         st.error(f"加载MLflow数据时出错: {str(e)}")
     
     return pd.DataFrame(experiments)
+
+
+def load_log_file(log_file_name: str, project_root: str = "."):
+    """
+    加载导航日志文件
+    
+    参数:
+        log_file_name: 日志文件名
+        project_root: 项目根目录
+    """
+    # 尝试多个可能的路径
+    possible_paths = [
+        os.path.join(project_root, "navigation_logs", log_file_name),
+        os.path.join(project_root, log_file_name),
+        log_file_name,
+    ]
+    
+    for path in possible_paths:
+        if os.path.exists(path):
+            try:
+                df = pd.read_csv(path)
+                return df
+            except Exception as e:
+                st.error(f"读取日志文件失败 {path}: {str(e)}")
+                return None
+    
+    # 如果找不到，尝试在navigation_logs目录中搜索
+    log_dir = os.path.join(project_root, "navigation_logs")
+    if os.path.exists(log_dir):
+        pattern = os.path.join(log_dir, f"*{log_file_name}*")
+        matches = glob.glob(pattern)
+        if matches:
+            try:
+                df = pd.read_csv(matches[0])
+                return df
+            except Exception as e:
+                st.error(f"读取日志文件失败 {matches[0]}: {str(e)}")
+    
+    return None
+
+
+def create_summary_table(df):
+    """
+    创建任务汇总表，显示参数和指标
+    """
+    # 选择要显示的列
+    param_cols = [col for col in df.columns if col.startswith('param_')]
+    metric_cols = [col for col in df.columns if col.startswith('metric_')]
+    
+    # 创建汇总表
+    summary_data = []
+    for _, row in df.iterrows():
+        summary_row = {
+            '实验名称': row.get('run_name', 'Unknown'),
+            '实验时间': row.get('start_time', ''),
+            '状态': row.get('status', ''),
+        }
+        
+        # 添加关键参数
+        key_params = ['model_dim_a', 'filter_solve_type', 'filter_numPar', 
+                     'dataset_folder', 'adapt_end_index']
+        for param in key_params:
+            param_col = f'param_{param}'
+            if param_col in row:
+                summary_row[param.replace('param_', '').replace('_', ' ').title()] = row[param_col]
+        
+        # 添加关键指标
+        key_metrics = ['ukf_vel_rmse_total', 'ukf_pos_rmse_total', 
+                      'pure_ins_vel_rmse_total', 'pure_ins_pos_rmse_total',
+                      'fa_rmse_total']
+        for metric in key_metrics:
+            metric_col = f'metric_{metric}'
+            if metric_col in row:
+                summary_row[metric.replace('metric_', '').replace('_', ' ').title()] = f"{row[metric_col]:.6f}"
+        
+        summary_data.append(summary_row)
+    
+    return pd.DataFrame(summary_data)
+
+
+def plot_time_series(log_df, run_name: str):
+    """
+    绘制时间序列对比图：位置、速度、姿态
+    对于速度和位置，xyz三个方向分别各一张图
+    每张图包含：纯惯导、UKF融合结果、真实结果
+    
+    参考main.py中的绘图逻辑：
+    - ukf_avps_xyz[i, 0:-5] 其中 i=0,1,2是姿态，i=3,4,5是速度，i=6,7,8是位置
+    - pure_avps_xyz[i, 0:pure_ins_data_length] 纯惯导数据
+    - y_real_data_total[i, 0:-5] 真实数据（只在i>2 and i<9时绘制，即速度和位置）
+    """
+    if log_df is None or log_df.empty:
+        return [], [], []
+    
+    time_col = 'time'
+    if time_col not in log_df.columns:
+        st.warning("日志文件中没有找到时间列")
+        return [], [], []
+    
+    # 位置对比图（X、Y、Z各一张）
+    # 对应ukf_avps_xyz索引6,7,8
+    pos_figs = []
+    pos_directions = ['x', 'y', 'z']
+    pos_labels = ['东向', '北向', '天向']
+    pos_indices = [6, 7, 8]  # 在ukf_avps_xyz中的索引
+    
+    for dir, label, idx in zip(pos_directions, pos_labels, pos_indices):
+        fig = go.Figure()
+        
+        # UKF融合位置 - 使用日志文件中的ukf_fused_px/py/pz
+        ukf_col = f'ukf_fused_p{dir}'
+        if ukf_col in log_df.columns:
+            # 过滤掉无效值（NaN或0）
+            valid_mask = pd.notna(log_df[ukf_col]) & (log_df[ukf_col] != 0)
+            if valid_mask.any():
+                fig.add_trace(go.Scatter(
+                    x=log_df.loc[valid_mask, time_col],
+                    y=log_df.loc[valid_mask, ukf_col],
+                    name='UKF融合结果',
+                    mode='lines',
+                    line=dict(color='#2E86AB', width=2)
+                ))
+        
+        # 纯惯导位置 - 使用日志文件中的ins_pred_pos_x/y/z
+        ins_col = f'ins_pred_pos_{dir}'
+        if ins_col in log_df.columns:
+            valid_mask = pd.notna(log_df[ins_col]) & (log_df[ins_col] != 0)
+            if valid_mask.any():
+                fig.add_trace(go.Scatter(
+                    x=log_df.loc[valid_mask, time_col],
+                    y=log_df.loc[valid_mask, ins_col],
+                    name='纯惯导解',
+                    mode='lines',
+                    line=dict(color='#F24236', width=2, dash='dash')
+                ))
+        
+        # 真实位置 - 使用日志文件中的real_px/py/pz
+        real_col = f'real_p{dir}'
+        if real_col in log_df.columns:
+            valid_mask = pd.notna(log_df[real_col]) & (log_df[real_col] != 0)
+            if valid_mask.any():
+                fig.add_trace(go.Scatter(
+                    x=log_df.loc[valid_mask, time_col],
+                    y=log_df.loc[valid_mask, real_col],
+                    name='真实值',
+                    mode='lines',
+                    line=dict(color='#06A77D', width=2, dash='dot')
+                ))
+        
+        fig.update_layout(
+            title=f'{run_name} - {label}位置对比',
+            xaxis_title='时间 (s)',
+            yaxis_title=f'{label}位置 (m)',
+            height=400,
+            legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
+        )
+        pos_figs.append(fig)
+    
+    # 速度对比图（X、Y、Z各一张）
+    # 对应ukf_avps_xyz索引3,4,5
+    vel_figs = []
+    vel_directions = ['x', 'y', 'z']
+    vel_labels = ['东向', '北向', '天向']
+    vel_indices = [3, 4, 5]  # 在ukf_avps_xyz中的索引
+    
+    for dir, label, idx in zip(vel_directions, vel_labels, vel_indices):
+        fig = go.Figure()
+        
+        # UKF融合速度 - 使用日志文件中的ukf_fused_vx/vy/vz
+        ukf_col = f'ukf_fused_v{dir}'
+        if ukf_col in log_df.columns:
+            valid_mask = pd.notna(log_df[ukf_col])
+            if valid_mask.any():
+                fig.add_trace(go.Scatter(
+                    x=log_df.loc[valid_mask, time_col],
+                    y=log_df.loc[valid_mask, ukf_col],
+                    name='UKF融合结果',
+                    mode='lines',
+                    line=dict(color='#2E86AB', width=2)
+                ))
+        
+        # 纯惯导速度 - 使用日志文件中的ins_pred_vx/vy/vz
+        ins_col = f'ins_pred_v{dir}'
+        if ins_col in log_df.columns:
+            valid_mask = pd.notna(log_df[ins_col])
+            if valid_mask.any():
+                fig.add_trace(go.Scatter(
+                    x=log_df.loc[valid_mask, time_col],
+                    y=log_df.loc[valid_mask, ins_col],
+                    name='纯惯导解',
+                    mode='lines',
+                    line=dict(color='#F24236', width=2, dash='dash')
+                ))
+        
+        # 真实速度 - 使用日志文件中的real_vx/vy/vz
+        real_col = f'real_v{dir}'
+        if real_col in log_df.columns:
+            valid_mask = pd.notna(log_df[real_col])
+            if valid_mask.any():
+                fig.add_trace(go.Scatter(
+                    x=log_df.loc[valid_mask, time_col],
+                    y=log_df.loc[valid_mask, real_col],
+                    name='真实值',
+                    mode='lines',
+                    line=dict(color='#06A77D', width=2, dash='dot')
+                ))
+        
+        fig.update_layout(
+            title=f'{run_name} - {label}速度对比',
+            xaxis_title='时间 (s)',
+            yaxis_title=f'{label}速度 (m/s)',
+            height=400,
+            legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
+        )
+        vel_figs.append(fig)
+    
+    # 姿态对比图（X、Y、Z各一张）
+    # 对应ukf_avps_xyz索引0,1,2
+    att_figs = []
+    att_directions = ['x', 'y', 'z']
+    att_labels = ['X', 'Y', 'Z']
+    att_indices = [0, 1, 2]  # 在ukf_avps_xyz中的索引
+    
+    for dir, label, idx in zip(att_directions, att_labels, att_indices):
+        fig = go.Figure()
+        
+        # UKF融合姿态 - 使用日志文件中的ukf_fused_att_x/y/z
+        ukf_col = f'ukf_fused_att_{dir}'
+        if ukf_col in log_df.columns:
+            valid_mask = pd.notna(log_df[ukf_col])
+            if valid_mask.any():
+                fig.add_trace(go.Scatter(
+                    x=log_df.loc[valid_mask, time_col],
+                    y=log_df.loc[valid_mask, ukf_col],
+                    name='UKF融合结果',
+                    mode='lines',
+                    line=dict(color='#2E86AB', width=2)
+                ))
+        
+        # 纯惯导姿态 - 使用日志文件中的ins_pred_att_x/y/z
+        ins_col = f'ins_pred_att_{dir}'
+        if ins_col in log_df.columns:
+            valid_mask = pd.notna(log_df[ins_col])
+            if valid_mask.any():
+                fig.add_trace(go.Scatter(
+                    x=log_df.loc[valid_mask, time_col],
+                    y=log_df.loc[valid_mask, ins_col],
+                    name='纯惯导解',
+                    mode='lines',
+                    line=dict(color='#F24236', width=2, dash='dash')
+                ))
+        
+        # 真实姿态 - 使用日志文件中的real_att_x/y/z（如果有）
+        real_col = f'real_att_{dir}'
+        if real_col in log_df.columns:
+            valid_mask = pd.notna(log_df[real_col])
+            if valid_mask.any():
+                fig.add_trace(go.Scatter(
+                    x=log_df.loc[valid_mask, time_col],
+                    y=log_df.loc[valid_mask, real_col],
+                    name='真实值',
+                    mode='lines',
+                    line=dict(color='#06A77D', width=2, dash='dot')
+                ))
+        
+        fig.update_layout(
+            title=f'{run_name} - 姿态{label}对比',
+            xaxis_title='时间 (s)',
+            yaxis_title=f'姿态{label} (度)',
+            height=400,
+            legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
+        )
+        att_figs.append(fig)
+    
+    return pos_figs, vel_figs, att_figs
 
 
 def main():
@@ -64,6 +360,7 @@ def main():
     # 侧边栏：配置
     st.sidebar.header("配置")
     tracking_uri = st.sidebar.text_input("MLflow跟踪URI", value="./mlruns")
+    project_root = st.sidebar.text_input("项目根目录", value=".")
     
     # 加载数据
     if st.sidebar.button("刷新数据"):
@@ -108,30 +405,32 @@ def main():
                 df = df[df[col].isin(selected)]
     
     # 主内容区域
-    tab1, tab2, tab3, tab4 = st.tabs(["📋 实验列表", "📊 RMSE对比", "📈 参数分析", "🔍 实验详情"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 任务汇总表", "📊 RMSE对比", "📈 参数分析", "🔍 实验详情", "📈 时间序列对比"])
     
     with tab1:
-        st.header("实验列表")
+        st.header("📋 任务汇总表")
+        st.markdown("显示所有实验的参数和关键指标")
         
-        # 显示数据表格
-        display_columns = ['run_name', 'experiment_name', 'start_time', 'status']
-        metric_columns = [col for col in df.columns if col.startswith('metric_')]
-        display_columns.extend(metric_columns[:10])  # 显示前10个指标
+        # 创建汇总表
+        summary_df = create_summary_table(df)
         
-        st.dataframe(
-            df[display_columns].sort_values('start_time', ascending=False),
-            use_container_width=True,
-            height=400
-        )
-        
-        # 下载按钮
-        csv = df.to_csv(index=False)
-        st.download_button(
-            label="下载数据 (CSV)",
-            data=csv,
-            file_name=f"experiments_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv"
-        )
+        if not summary_df.empty:
+            st.dataframe(
+                summary_df.sort_values('实验时间', ascending=False),
+                use_container_width=True,
+                height=600
+            )
+            
+            # 下载按钮
+            csv = summary_df.to_csv(index=False)
+            st.download_button(
+                label="下载汇总表 (CSV)",
+                data=csv,
+                file_name=f"experiment_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv"
+            )
+        else:
+            st.warning("无法创建汇总表")
     
     with tab2:
         st.header("RMSE对比")
@@ -200,13 +499,12 @@ def main():
                         scatter_data,
                         x=selected_param,
                         y=selected_metric,
-                        title=f'{selected_param.replace("param_", "")} vs {selected_metric.replace("metric_", "")}',
-                        trendline="ols"
+                        title=f'{selected_param.replace("param_", "")} vs {selected_metric.replace("metric_", "")}'
                     )
                     st.plotly_chart(fig, use_container_width=True)
     
     with tab4:
-        st.header("实验详情")
+        st.header("🔍 实验详情")
         
         if not df.empty:
             selected_run = st.selectbox(
@@ -225,6 +523,55 @@ def main():
             st.subheader("指标")
             metric_data = {k.replace('metric_', ''): v for k, v in selected_row.items() if k.startswith('metric_')}
             st.json(metric_data)
+    
+    with tab5:
+        st.header("📈 时间序列对比")
+        st.markdown("显示位置、速度、姿态的时间序列对比图")
+        
+        if not df.empty:
+            # 选择实验
+            selected_run_ts = st.selectbox(
+                "选择要查看的实验",
+                options=df['run_name'].unique() if 'run_name' in df.columns else df.index,
+                key="ts_run_selector"
+            )
+            
+            selected_row_ts = df[df['run_name'] == selected_run_ts].iloc[0] if 'run_name' in df.columns else df.iloc[selected_run_ts]
+            
+            # 获取日志文件名
+            log_file_name = selected_row_ts.get('log_file', None)
+            
+            if log_file_name:
+                # 加载日志文件
+                with st.spinner(f"正在加载日志文件: {log_file_name}"):
+                    log_df = load_log_file(log_file_name, project_root)
+                
+                if log_df is not None and not log_df.empty:
+                    # 绘制时间序列图
+                    pos_figs, vel_figs, att_figs = plot_time_series(log_df, selected_run_ts)
+                    
+                    # 显示位置对比图（X、Y、Z各一张）
+                    st.subheader("位置对比")
+                    if pos_figs:
+                        for i, fig in enumerate(pos_figs):
+                            st.plotly_chart(fig, use_container_width=True)
+                    
+                    # 显示速度对比图（X、Y、Z各一张）
+                    st.subheader("速度对比")
+                    if vel_figs:
+                        for i, fig in enumerate(vel_figs):
+                            st.plotly_chart(fig, use_container_width=True)
+                    
+                    # 显示姿态对比图（X、Y、Z各一张）
+                    st.subheader("姿态对比")
+                    if att_figs:
+                        for i, fig in enumerate(att_figs):
+                            st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.warning(f"无法加载日志文件: {log_file_name}")
+                    st.info("提示：请确保日志文件在 navigation_logs 目录中")
+            else:
+                st.info("该实验没有关联的日志文件")
 
 
 if __name__ == "__main__":

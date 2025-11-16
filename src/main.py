@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 
 # 导入MLflow工具
 import sys
+import mlflow
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'visualization'))
 from mlflow_utils import (
     setup_mlflow_experiment, 
@@ -425,8 +426,28 @@ for loop_index in range(first_index,loops):
     obs_residual_xyz = ins_pred_pos_xyz - dynamic_pos_xyz
 
     # # 查看matlab_avp位置结果
+    # 为了与绘图数据一致，需要将matlab_avp（LLH格式）转换为XYZ格式
+    # 这与绘图时对ukf_avps的处理方式一致
     matlab_ukf_avp_xyz = eng.llh2xyz_subfun( matlab_avp )
     ukf_fused_avp_xyz = np.array(matlab_ukf_avp_xyz).flatten()
+    
+    # ukf_fused_avp_xyz包含完整的10个元素（姿态3+速度3+位置3+时间1）
+    # 提取前9个元素（姿态、速度、位置），对应绘图时的ukf_avps_xyz
+    # 注意：姿态和速度在LLH和XYZ格式中数值相同，只有位置需要转换
+    ukf_fused_att_xyz = ukf_fused_avp_xyz[0:3]  # 姿态（LLH格式，但数值与XYZ相同）
+    ukf_fused_vel_xyz = ukf_fused_avp_xyz[3:6]  # 速度（LLH格式，但数值与XYZ相同）
+    ukf_fused_pos_xyz = ukf_fused_avp_xyz[6:9]  # 位置（XYZ格式，已转换）
+    
+    # 对于纯惯导（INS预测），需要记录完整的状态（姿态、速度、位置）
+    # 绘图时使用的pure_avps_xyz是从pure_avps转换来的
+    # 但pure_avps是在循环前计算的，这里我们使用INS预测的状态
+    # INS预测只有位置（已转换为XYZ），速度和姿态从last_avp获取（融合前的状态，LLH格式）
+    # 为了与绘图一致，需要将last_avp转换为XYZ格式
+    last_avp_xyz_full = eng.llh2xyz_subfun( matlab.double( last_avp.tolist() ) )
+    last_avp_xyz_full = np.array(last_avp_xyz_full).flatten()
+    ins_pred_att_xyz = last_avp_xyz_full[0:3]  # 姿态（LLH格式，但数值与XYZ相同）
+    ins_pred_vel_xyz = last_avp_xyz_full[3:6]  # 速度（LLH格式，但数值与XYZ相同）
+    # ins_pred_pos_xyz已经在上面计算了（XYZ格式）
     
     # 获取当前时刻的真实值和期望值
     # 从四元数转换为姿态角（如果需要）或者使用上一时刻的姿态作为近似
@@ -475,16 +496,16 @@ for loop_index in range(first_index,loops):
         dynamic_pos_xyz[0], dynamic_pos_xyz[1], dynamic_pos_xyz[2],  # 位置
         dynamic_vel_xyz[0], dynamic_vel_xyz[1], dynamic_vel_xyz[2],  # 速度
         dynamic_vdot_xyz[0], dynamic_vdot_xyz[1], dynamic_vdot_xyz[2],  # 加速度
-        # 惯导预测（UKF融合前）
-        ins_pred_pos_xyz[0], ins_pred_pos_xyz[1], ins_pred_pos_xyz[2],  # 位置
-        last_avp_flat[0], last_avp_flat[1], last_avp_flat[2],  # 姿态（使用上一时刻的）
-        last_avp_flat[3], last_avp_flat[4], last_avp_flat[5],  # 速度
+        # 惯导预测（UKF融合前）- 记录XYZ格式的完整状态以便绘图
+        ins_pred_pos_xyz[0], ins_pred_pos_xyz[1], ins_pred_pos_xyz[2],  # 位置（XYZ格式）
+        ins_pred_att_xyz[0], ins_pred_att_xyz[1], ins_pred_att_xyz[2],  # 姿态（LLH格式，但姿态值相同）
+        ins_pred_vel_xyz[0], ins_pred_vel_xyz[1], ins_pred_vel_xyz[2],  # 速度（LLH格式，但速度值相同）
         # 观测残差
         obs_residual_xyz[0], obs_residual_xyz[1], obs_residual_xyz[2],
-        # UKF融合后状态
-        matlab_avp_flat[0], matlab_avp_flat[1], matlab_avp_flat[2],  # 姿态
-        matlab_avp_flat[3], matlab_avp_flat[4], matlab_avp_flat[5],  # 速度
-        ukf_fused_avp_xyz[0], ukf_fused_avp_xyz[1], ukf_fused_avp_xyz[2],  # 位置
+        # UKF融合后状态 - 记录XYZ格式的完整状态以便绘图
+        ukf_fused_att_xyz[0], ukf_fused_att_xyz[1], ukf_fused_att_xyz[2],  # 姿态（LLH格式，但姿态值相同）
+        ukf_fused_vel_xyz[0], ukf_fused_vel_xyz[1], ukf_fused_vel_xyz[2],  # 速度（LLH格式，但速度值相同）
+        ukf_fused_pos_xyz[0], ukf_fused_pos_xyz[1], ukf_fused_pos_xyz[2],  # 位置（XYZ格式）
         # 真实值
         current_real_att[0], current_real_att[1], current_real_att[2],
         current_real_v[0], current_real_v[1], current_real_v[2],
@@ -758,6 +779,10 @@ log_experiment_metrics(metrics)
 # 记录模型文件
 model_file_path = os.path.join(project_root, 'models', f"{modelname}-epoch-{stopping_epoch}.pth")
 log_model_file(model_file_path)
+
+# 记录日志文件路径（用于后续可视化）
+mlflow.log_param('log_file', os.path.basename(log_file))
+mlflow.log_artifact(log_file, artifact_path="logs")
 
 print("\n========== MLflow记录完成 ==========")
 
