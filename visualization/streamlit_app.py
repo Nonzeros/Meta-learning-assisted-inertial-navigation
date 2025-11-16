@@ -122,11 +122,13 @@ def create_summary_table(df):
     
     # 创建汇总表
     summary_data = []
-    for _, row in df.iterrows():
+    for idx, row in df.iterrows():
         summary_row = {
             '实验名称': row.get('run_name', 'Unknown'),
             '实验时间': row.get('start_time', ''),
             '状态': row.get('status', ''),
+            'run_id': row.get('run_id', ''),  # 保存run_id用于跳转
+            'run_name_key': row.get('run_name', 'Unknown'),  # 保存run_name用于跳转
         }
         
         # 添加关键参数
@@ -186,6 +188,19 @@ def plot_time_series(log_df, run_name: str):
     for dir, label in zip(pos_directions, pos_labels):
         fig = go.Figure()
         
+        # 真实位置 - 使用日志文件中的real_px/py/pz（先绘制真实值）
+        real_col = f'real_p{dir}'
+        if real_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[real_col]) & (log_df_plot[real_col] != 0)
+            if valid_mask.any():
+                fig.add_trace(go.Scatter(
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, real_col],
+                    name='真实值',
+                    mode='lines',
+                    line=dict(color='#06A77D', width=2, dash='dot')
+                ))
+        
         # UKF融合位置 - 使用日志文件中的ukf_fused_px/py/pz
         ukf_col = f'ukf_fused_p{dir}'
         if ukf_col in log_df_plot.columns:
@@ -213,19 +228,6 @@ def plot_time_series(log_df, run_name: str):
                     line=dict(color='#F24236', width=2, dash='dash')
                 ))
         
-        # 真实位置 - 使用日志文件中的real_px/py/pz
-        real_col = f'real_p{dir}'
-        if real_col in log_df_plot.columns:
-            valid_mask = pd.notna(log_df_plot[real_col]) & (log_df_plot[real_col] != 0)
-            if valid_mask.any():
-                fig.add_trace(go.Scatter(
-                    x=log_df_plot.loc[valid_mask, time_col],
-                    y=log_df_plot.loc[valid_mask, real_col],
-                    name='真实值',
-                    mode='lines',
-                    line=dict(color='#06A77D', width=2, dash='dot')
-                ))
-        
         fig.update_layout(
             title=f'{label}位置对比',
             xaxis_title='时间 (s)',
@@ -242,6 +244,19 @@ def plot_time_series(log_df, run_name: str):
     
     for dir, label in zip(vel_directions, vel_labels):
         fig = go.Figure()
+        
+        # 真实速度 - 使用日志文件中的real_vx/vy/vz（先绘制真实值）
+        real_col = f'real_v{dir}'
+        if real_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[real_col])
+            if valid_mask.any():
+                fig.add_trace(go.Scatter(
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, real_col],
+                    name='真实值',
+                    mode='lines',
+                    line=dict(color='#06A77D', width=2, dash='dot')
+                ))
         
         # UKF融合速度 - 使用日志文件中的ukf_fused_vx/vy/vz
         ukf_col = f'ukf_fused_v{dir}'
@@ -269,19 +284,6 @@ def plot_time_series(log_df, run_name: str):
                     line=dict(color='#F24236', width=2, dash='dash')
                 ))
         
-        # 真实速度 - 使用日志文件中的real_vx/vy/vz
-        real_col = f'real_v{dir}'
-        if real_col in log_df_plot.columns:
-            valid_mask = pd.notna(log_df_plot[real_col])
-            if valid_mask.any():
-                fig.add_trace(go.Scatter(
-                    x=log_df_plot.loc[valid_mask, time_col],
-                    y=log_df_plot.loc[valid_mask, real_col],
-                    name='真实值',
-                    mode='lines',
-                    line=dict(color='#06A77D', width=2, dash='dot')
-                ))
-        
         fig.update_layout(
             title=f'{label}速度对比',
             xaxis_title='时间 (s)',
@@ -298,6 +300,19 @@ def plot_time_series(log_df, run_name: str):
     
     for dir, label in zip(att_directions, att_labels):
         fig = go.Figure()
+        
+        # 真实姿态 - 使用日志文件中的real_att_x/y/z（先绘制真实值）
+        real_col = f'real_att_{dir}'
+        if real_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[real_col])
+            if valid_mask.any():
+                fig.add_trace(go.Scatter(
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, real_col],
+                    name='真实值',
+                    mode='lines',
+                    line=dict(color='#06A77D', width=2, dash='dot')
+                ))
         
         # UKF融合姿态 - 使用日志文件中的ukf_fused_att_x/y/z
         ukf_col = f'ukf_fused_att_{dir}'
@@ -325,19 +340,6 @@ def plot_time_series(log_df, run_name: str):
                     line=dict(color='#F24236', width=2, dash='dash')
                 ))
         
-        # 真实姿态 - 使用日志文件中的real_att_x/y/z（如果有）
-        real_col = f'real_att_{dir}'
-        if real_col in log_df_plot.columns:
-            valid_mask = pd.notna(log_df_plot[real_col])
-            if valid_mask.any():
-                fig.add_trace(go.Scatter(
-                    x=log_df_plot.loc[valid_mask, time_col],
-                    y=log_df_plot.loc[valid_mask, real_col],
-                    name='真实值',
-                    mode='lines',
-                    line=dict(color='#06A77D', width=2, dash='dot')
-                ))
-        
         fig.update_layout(
             title=f'姿态{label}对比',
             xaxis_title='时间 (s)',
@@ -356,6 +358,12 @@ def main():
         page_icon="📊",
         layout="wide"
     )
+    
+    # 初始化session state
+    if 'selected_run_name' not in st.session_state:
+        st.session_state['selected_run_name'] = None
+    if 'jump_to_tab' not in st.session_state:
+        st.session_state['jump_to_tab'] = None
     
     st.title("📊 导航融合实验可视化")
     
@@ -409,22 +417,119 @@ def main():
     # 主内容区域
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 任务汇总表", "📊 RMSE对比", "📈 参数分析", "🔍 实验详情", "📈 时间序列对比"])
     
+    # 如果设置了跳转，显示提示信息
+    jump_to_tab = st.session_state.get('jump_to_tab')
+    if jump_to_tab:
+        if jump_to_tab == 'tab4':
+            st.info("💡 已选择实验，请切换到 **🔍 实验详情** 标签页查看参数信息")
+        elif jump_to_tab == 'tab5':
+            st.info("💡 已选择实验，请切换到 **📈 时间序列对比** 标签页查看图表")
+    
     with tab1:
         st.header("📋 任务汇总表")
-        st.markdown("显示所有实验的参数和关键指标")
+        st.markdown("显示所有实验的参数和关键指标。勾选任务后点击跳转按钮查看详情。")
         
         # 创建汇总表
         summary_df = create_summary_table(df)
         
         if not summary_df.empty:
-            st.dataframe(
-                summary_df.sort_values('实验时间', ascending=False),
-                use_container_width=True,
-                height=600
-            )
+            # 排序
+            summary_df_sorted = summary_df.sort_values('实验时间', ascending=False).reset_index(drop=True)
+            
+            # 初始化多选框状态
+            if 'selected_runs' not in st.session_state:
+                st.session_state['selected_runs'] = []
+            
+            # 使用列布局显示表格和按钮
+            col1, col2 = st.columns([4, 1])
+            
+            with col1:
+                # 为每行添加多选框
+                run_names = summary_df_sorted['实验名称'].tolist()
+                
+                # 创建多选框列表
+                st.markdown("**选择要查看的任务：**")
+                selected_indices = []
+                
+                # 使用容器来显示多选框和表格
+                checkbox_container = st.container()
+                
+                with checkbox_container:
+                    # 全选/取消全选按钮
+                    col_select_all, col_clear_all = st.columns(2)
+                    with col_select_all:
+                        if st.button("全选", key="select_all_btn", use_container_width=True):
+                            st.session_state['selected_runs'] = run_names.copy()
+                            st.rerun()
+                    with col_clear_all:
+                        if st.button("清空", key="clear_all_btn", use_container_width=True):
+                            st.session_state['selected_runs'] = []
+                            st.rerun()
+                    
+                    st.markdown("---")
+                    
+                    # 为每个任务创建多选框
+                    current_selected = []
+                    for idx, run_name in enumerate(run_names):
+                        is_selected = run_name in st.session_state.get('selected_runs', [])
+                        checkbox_key = f"checkbox_{idx}_{run_name}"
+                        
+                        checked = st.checkbox(
+                            run_name,
+                            value=is_selected,
+                            key=checkbox_key
+                        )
+                        
+                        if checked:
+                            current_selected.append(run_name)
+                    
+                    # 更新session state
+                    st.session_state['selected_runs'] = current_selected
+                
+                st.markdown("---")
+                
+                # 显示表格（隐藏run_id和run_name_key列）
+                display_df = summary_df_sorted.drop(columns=['run_id', 'run_name_key'], errors='ignore')
+                st.dataframe(
+                    display_df,
+                    use_container_width=True,
+                    height=400,
+                    hide_index=True
+                )
+            
+            with col2:
+                st.markdown("### 快速跳转")
+                st.markdown("---")
+                
+                # 显示已选中的任务数量
+                selected_count = len(st.session_state.get('selected_runs', []))
+                st.markdown(f"**已选择：{selected_count} 个任务**")
+                
+                if selected_count > 0:
+                    # 显示选中的任务列表
+                    st.markdown("**选中的任务：**")
+                    for run_name in st.session_state.get('selected_runs', []):
+                        st.markdown(f"- {run_name}")
+                    
+                    st.markdown("---")
+                    
+                    # 跳转按钮（只跳转到第一个选中的任务）
+                    if st.button("📊 查看详情（时间序列）", key="view_details_btn", use_container_width=True):
+                        if st.session_state.get('selected_runs'):
+                            st.session_state['selected_run_name'] = st.session_state['selected_runs'][0]
+                            st.session_state['jump_to_tab'] = 'tab5'  # 跳转到时间序列对比标签页
+                            st.rerun()
+                    
+                    if st.button("📋 查看参数", key="view_params_btn", use_container_width=True):
+                        if st.session_state.get('selected_runs'):
+                            st.session_state['selected_run_name'] = st.session_state['selected_runs'][0]
+                            st.session_state['jump_to_tab'] = 'tab4'  # 跳转到实验详情标签页
+                            st.rerun()
+                else:
+                    st.info("请先选择任务")
             
             # 下载按钮
-            csv = summary_df.to_csv(index=False)
+            csv = summary_df_sorted.drop(columns=['run_id', 'run_name_key'], errors='ignore').to_csv(index=False)
             st.download_button(
                 label="下载汇总表 (CSV)",
                 data=csv,
@@ -509,20 +614,172 @@ def main():
         st.header("🔍 实验详情")
         
         if not df.empty:
+            # 如果从汇总表跳转过来，使用session state中的选择
+            default_run = st.session_state.get('selected_run_name', None)
+            run_options = df['run_name'].unique() if 'run_name' in df.columns else df.index.tolist()
+            
+            if default_run and default_run in run_options:
+                default_index = list(run_options).index(default_run)
+            else:
+                default_index = 0
+            
             selected_run = st.selectbox(
                 "选择实验运行",
-                options=df['run_name'].unique() if 'run_name' in df.columns else df.index
+                options=run_options,
+                index=default_index if default_index < len(run_options) else 0
             )
             
             selected_row = df[df['run_name'] == selected_run].iloc[0] if 'run_name' in df.columns else df.iloc[selected_run]
+            
+            # RMSE对比部分
+            st.subheader("📊 RMSE对比（UKF vs 纯惯导）")
+            
+            # 提取RMSE指标
+            rmse_metrics = {
+                '速度RMSE': {
+                    'UKF': {
+                        '东向': selected_row.get('metric_ukf_vel_rmse_east', None),
+                        '北向': selected_row.get('metric_ukf_vel_rmse_north', None),
+                        '天向': selected_row.get('metric_ukf_vel_rmse_up', None),
+                        '总RMSE': selected_row.get('metric_ukf_vel_rmse_total', None)
+                    },
+                    '纯惯导': {
+                        '东向': selected_row.get('metric_pure_ins_vel_rmse_east', None),
+                        '北向': selected_row.get('metric_pure_ins_vel_rmse_north', None),
+                        '天向': selected_row.get('metric_pure_ins_vel_rmse_up', None),
+                        '总RMSE': selected_row.get('metric_pure_ins_vel_rmse_total', None)
+                    }
+                },
+                '位置RMSE': {
+                    'UKF': {
+                        '东向': selected_row.get('metric_ukf_pos_rmse_east', None),
+                        '北向': selected_row.get('metric_ukf_pos_rmse_north', None),
+                        '天向': selected_row.get('metric_ukf_pos_rmse_up', None),
+                        '总RMSE': selected_row.get('metric_ukf_pos_rmse_total', None)
+                    },
+                    '纯惯导': {
+                        '东向': selected_row.get('metric_pure_ins_pos_rmse_east', None),
+                        '北向': selected_row.get('metric_pure_ins_pos_rmse_north', None),
+                        '天向': selected_row.get('metric_pure_ins_pos_rmse_up', None),
+                        '总RMSE': selected_row.get('metric_pure_ins_pos_rmse_total', None)
+                    }
+                }
+            }
+            
+            # 创建对比表格
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("### 速度RMSE对比")
+                vel_data = []
+                for direction in ['东向', '北向', '天向', '总RMSE']:
+                    ukf_val = rmse_metrics['速度RMSE']['UKF'][direction]
+                    pure_val = rmse_metrics['速度RMSE']['纯惯导'][direction]
+                    if ukf_val is not None and pure_val is not None:
+                        improvement = ((pure_val - ukf_val) / pure_val * 100) if pure_val != 0 else 0
+                        vel_data.append({
+                            '方向': direction,
+                            'UKF (m/s)': f"{ukf_val:.4f}",
+                            '纯惯导 (m/s)': f"{pure_val:.4f}",
+                            '改善 (%)': f"{improvement:.2f}%"
+                        })
+                
+                if vel_data:
+                    vel_df = pd.DataFrame(vel_data)
+                    st.dataframe(vel_df, use_container_width=True, hide_index=True)
+                    
+                    # 速度RMSE对比图
+                    fig_vel = go.Figure()
+                    directions = ['东向', '北向', '天向', '总RMSE']
+                    ukf_vals = [rmse_metrics['速度RMSE']['UKF'][d] for d in directions if rmse_metrics['速度RMSE']['UKF'][d] is not None]
+                    pure_vals = [rmse_metrics['速度RMSE']['纯惯导'][d] for d in directions if rmse_metrics['速度RMSE']['纯惯导'][d] is not None]
+                    valid_directions = [d for d in directions if rmse_metrics['速度RMSE']['UKF'][d] is not None and rmse_metrics['速度RMSE']['纯惯导'][d] is not None]
+                    
+                    if ukf_vals and pure_vals:
+                        fig_vel.add_trace(go.Bar(
+                            x=valid_directions,
+                            y=ukf_vals,
+                            name='UKF',
+                            marker_color='#2E86AB'
+                        ))
+                        fig_vel.add_trace(go.Bar(
+                            x=valid_directions,
+                            y=pure_vals,
+                            name='纯惯导',
+                            marker_color='#F24236'
+                        ))
+                        fig_vel.update_layout(
+                            title='速度RMSE对比',
+                            xaxis_title='方向',
+                            yaxis_title='RMSE (m/s)',
+                            barmode='group',
+                            height=400,
+                            legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
+                        )
+                        st.plotly_chart(fig_vel, use_container_width=True)
+                else:
+                    st.info("速度RMSE数据不可用")
+            
+            with col2:
+                st.markdown("### 位置RMSE对比")
+                pos_data = []
+                for direction in ['东向', '北向', '天向', '总RMSE']:
+                    ukf_val = rmse_metrics['位置RMSE']['UKF'][direction]
+                    pure_val = rmse_metrics['位置RMSE']['纯惯导'][direction]
+                    if ukf_val is not None and pure_val is not None:
+                        improvement = ((pure_val - ukf_val) / pure_val * 100) if pure_val != 0 else 0
+                        pos_data.append({
+                            '方向': direction,
+                            'UKF (m)': f"{ukf_val:.4f}",
+                            '纯惯导 (m)': f"{pure_val:.4f}",
+                            '改善 (%)': f"{improvement:.2f}%"
+                        })
+                
+                if pos_data:
+                    pos_df = pd.DataFrame(pos_data)
+                    st.dataframe(pos_df, use_container_width=True, hide_index=True)
+                    
+                    # 位置RMSE对比图
+                    fig_pos = go.Figure()
+                    directions = ['东向', '北向', '天向', '总RMSE']
+                    ukf_vals = [rmse_metrics['位置RMSE']['UKF'][d] for d in directions if rmse_metrics['位置RMSE']['UKF'][d] is not None]
+                    pure_vals = [rmse_metrics['位置RMSE']['纯惯导'][d] for d in directions if rmse_metrics['位置RMSE']['纯惯导'][d] is not None]
+                    valid_directions = [d for d in directions if rmse_metrics['位置RMSE']['UKF'][d] is not None and rmse_metrics['位置RMSE']['纯惯导'][d] is not None]
+                    
+                    if ukf_vals and pure_vals:
+                        fig_pos.add_trace(go.Bar(
+                            x=valid_directions,
+                            y=ukf_vals,
+                            name='UKF',
+                            marker_color='#2E86AB'
+                        ))
+                        fig_pos.add_trace(go.Bar(
+                            x=valid_directions,
+                            y=pure_vals,
+                            name='纯惯导',
+                            marker_color='#F24236'
+                        ))
+                        fig_pos.update_layout(
+                            title='位置RMSE对比',
+                            xaxis_title='方向',
+                            yaxis_title='RMSE (m)',
+                            barmode='group',
+                            height=400,
+                            legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
+                        )
+                        st.plotly_chart(fig_pos, use_container_width=True)
+                else:
+                    st.info("位置RMSE数据不可用")
+            
+            st.markdown("---")
             
             # 显示参数
             st.subheader("参数")
             param_data = {k.replace('param_', ''): v for k, v in selected_row.items() if k.startswith('param_')}
             st.json(param_data)
             
-            # 显示指标
-            st.subheader("指标")
+            # 显示所有指标
+            st.subheader("所有指标")
             metric_data = {k.replace('metric_', ''): v for k, v in selected_row.items() if k.startswith('metric_')}
             st.json(metric_data)
     
@@ -531,10 +788,20 @@ def main():
         st.markdown("显示位置、速度、姿态的时间序列对比图（从日志文件读取）")
         
         if not df.empty:
+            # 如果从汇总表跳转过来，使用session state中的选择
+            default_run_ts = st.session_state.get('selected_run_name', None)
+            run_options_ts = df['run_name'].unique() if 'run_name' in df.columns else df.index.tolist()
+            
+            if default_run_ts and default_run_ts in run_options_ts:
+                default_index_ts = list(run_options_ts).index(default_run_ts)
+            else:
+                default_index_ts = 0
+            
             # 选择实验
             selected_run_ts = st.selectbox(
                 "选择要查看的实验",
-                options=df['run_name'].unique() if 'run_name' in df.columns else df.index,
+                options=run_options_ts,
+                index=default_index_ts if default_index_ts < len(run_options_ts) else 0,
                 key="ts_run_selector"
             )
             
