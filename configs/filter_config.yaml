@@ -10,6 +10,7 @@ model:
 filter:
   type: 2  # 1=卡尔曼滤波(KF), 2=粒子滤波(PF)
   numPar: 30  # 粒子滤波的粒子数量（仅当type=2时使用）
+  lambda1: 0.1  # 阻尼系数（用于粒子滤波和卡尔曼滤波的在线适应）
 
 # 粒子滤波参数（仅当filter.type=2时使用）
 particle_filter:

@@ -87,11 +87,14 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
         model_name = filter_config['model']['name']
         dim_a = filter_config['model']['dim_a']
         
+        # 从filter_config读取lambda1，如果没有则使用默认值0.1
+        lambda1 = filter_config.get('filter', {}).get('lambda1', 0.1)
+        
         options = {
             'dim_a': dim_a,
             'loss_type': 'crossentropy-loss',
             'solve_type': solver_type,
-            'lambda1': 0.1,
+            'lambda1': lambda1,
             'numPar': numPar,
             'filter_config': filter_config
         }
