@@ -13,13 +13,16 @@ import mlmodel
 import numpy as np
 import matplotlib.pyplot as plt
 
+# 获取项目根目录（main.py 在 src/ 目录下，所以需要向上两级）
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 # 动力学信息获取
 ## 1.模型、数据准备
 #测试集
-from dynamic_model_imu_navigation.matlab_python_connetion.intelligent_dynamic_module import intelligent_dynamic_module
+from intelligent_dynamic_module import intelligent_dynamic_module
 
 dataset = 'neural-fly'
-dataset_folder = 'data/experiment2'
+dataset_folder = os.path.join(project_root, 'data', 'experiment2')
 # 数据集的文件列表
 data_files = os.listdir(dataset_folder)
 # 原始数据文件
@@ -65,7 +68,11 @@ print(options)
 # 2.matlab设置
 eng = matlab.engine.start_matlab()
 # 将matlab文件加入工作目录
-eng.addpath(r"F:\code_for_guide\Neural-Fly Enables Rapid Learning for Agile Flight in Strong Winds\neural-fly-main2_mydata")
+matlab_utils_path = os.path.join(project_root, 'matlab', 'utils')
+matlab_psins_path = os.path.join(project_root, 'matlab', 'third_part', 'psins240809')
+# 将路径转换为MATLAB格式（使用正斜杠）
+eng.addpath(matlab_utils_path.replace('\\', '/'))
+eng.addpath(matlab_psins_path.replace('\\', '/'))
 # 导入psins全局变量
 glv_init_code = """
     % 声明glv为全局变量
@@ -155,6 +162,9 @@ glv_init_code = """
     glv.gfix = [];  glv.dgn = [];  % 备用变量
 """
 eng.eval(glv_init_code, nargout=0)  # nargout=0：无输出，仅执行初始化
+# 设置MATLAB工作目录到ProcessedData文件夹，以便读取Excel文件
+processed_data_path = os.path.join(project_root, 'ProcessedData')
+eng.cd(processed_data_path.replace('\\', '/'), nargout=0)
 # 惯导反演算法计算角增量和比例增量 计算完毕后，可读取 imu 变量获取角增量 比力增量
 matlab_imu, matlab_avp0 = eng.av2imu_main3(adapt_end_index+1,nargout=2)
 # matlab_avp0 = eng.workspace['avp0']  # 返回matlab.double类型
@@ -191,7 +201,6 @@ matlab_kf, matlab_ins = eng.SINS_dynamic_UKF153_init(matlab.double(avp0_change.t
 # 3.动力学模型神经网络初始设置
 # 适应阶段最小二乘计算 a 的初始值
 dataset = 'neural-fly'
-dataset_folder = 'data/experiment2'
 features = ['v', 'q', 'pwm']  # 定义一个列表，包含三个特征名称
 modelname = f"{dataset}_dim-a-{dim_a}_{'-'.join(features)}"
 
@@ -222,7 +231,7 @@ last_last_avp = last_avp.copy()
 
 # 初始化日志文件
 log_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-log_dir = "navigation_logs"
+log_dir = os.path.join(project_root, "navigation_logs")
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
 

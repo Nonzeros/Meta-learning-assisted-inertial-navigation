@@ -65,7 +65,12 @@ def save_model(*, phi_net, h_net, modelname, options):
             'options': dict(options)
         }, './models3/' + modelname + '.pth')
 
-def load_model(modelname, modelfolder='./models/'):
+def load_model(modelname, modelfolder=None):
+    # 如果没有指定模型文件夹，自动检测项目根目录
+    if modelfolder is None:
+        # 获取项目根目录（mlmodel.py 在 src/ 目录下）
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        modelfolder = os.path.join(project_root, 'models') + os.sep
     model = torch.load(modelfolder + modelname + '.pth')
     options = model['options']
 
