@@ -26,7 +26,7 @@ def intelligent_dynamic_module(inputdata, outputlabel, delta_v,delta_p, dynamic_
 
     # 训练好的模型
     dataset = 'neural-fly'
-    dataset_folder = 'data/experiment'
+    #dataset_folder = 'data/experiment'
     features = ['v', 'q', 'pwm']  # 定义一个列表，包含三个特征名称
     modelname = f"{dataset}_dim-a-{dim_a}_{'-'.join(features)}"
 
@@ -55,8 +55,8 @@ def intelligent_dynamic_module(inputdata, outputlabel, delta_v,delta_p, dynamic_
     fT = np.array([0, 0, float(T_sp / hover_throttle) * 9.8 * m0])
     fT = fT.reshape((3, 1))
 
-    fT = np.array([0, 0, float(T_sp / hover_throttle) * 9.8 * m0])
-    fT = fT.reshape((3,1))
+    # fT = np.array([0, 0, float(T_sp / hover_throttle) * 9.8 * m0])
+    # fT = fT.reshape((3,1))
 
     v_dot = g + ( Ri @ fT + neural_f ) / m # 3*1 # 神经网络模型
 
