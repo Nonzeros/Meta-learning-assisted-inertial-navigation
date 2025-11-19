@@ -171,12 +171,16 @@ glv_init_code = """
 """
 
 # ========== 参数扫描循环 ==========
-# 初始化运行日志
+# 创建大任务文件夹（以启动时间命名）
+task_batch_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+task_batch_folder = os.path.join(project_root, "navigation_logs", f"task_batch_{task_batch_timestamp}")
+if not os.path.exists(task_batch_folder):
+    os.makedirs(task_batch_folder)
+print(f"\n大任务文件夹已创建: {task_batch_folder}")
+
+# 初始化运行日志（保存到大任务文件夹）
 run_log_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-run_log_dir = os.path.join(project_root, "navigation_logs")
-if not os.path.exists(run_log_dir):
-    os.makedirs(run_log_dir)
-run_log_file = os.path.join(run_log_dir, f"experiment_run_log_{run_log_timestamp}.txt")
+run_log_file = os.path.join(task_batch_folder, f"experiment_run_log_{run_log_timestamp}.txt")
 run_log = open(run_log_file, 'w', encoding='utf-8')
 
 # 实验结果汇总
@@ -195,6 +199,7 @@ print(f"{'='*60}\n")
 
 run_log.write(f"\n{'='*60}\n")
 run_log.write(f"参数扫描实验开始\n")
+run_log.write(f"大任务文件夹: {task_batch_folder}\n")
 run_log.write(f"参数组合数: {total_combinations}\n")
 run_log.write(f"每个组合的文件数: {len(csv_files_to_process)}\n")
 run_log.write(f"总任务数: {total_tasks}\n")
@@ -237,6 +242,8 @@ for param_idx, current_filter_config in enumerate(param_combinations, 1):
             mlflow.log_param("param_combination_str", param_str)
             mlflow.log_param("file_index", file_idx)
             mlflow.log_param("task_number", task_num)
+            mlflow.log_param("task_batch_folder", os.path.basename(task_batch_folder))  # 记录大任务文件夹名称
+            mlflow.log_param("task_batch_timestamp", task_batch_timestamp)  # 记录大任务时间戳
             
             # 运行单个实验
             success, error_msg, results = run_single_experiment(
@@ -245,7 +252,8 @@ for param_idx, current_filter_config in enumerate(param_combinations, 1):
                 filter_config=current_filter_config,  # 使用当前参数组合
                 eng=eng,
                 adapt_end_index=adapt_end_index,
-                glv_init_code=glv_init_code
+                glv_init_code=glv_init_code,
+                task_batch_folder=task_batch_folder  # 传递大任务文件夹路径
             )
         
             if success:

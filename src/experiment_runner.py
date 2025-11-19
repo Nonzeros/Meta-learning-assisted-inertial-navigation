@@ -24,7 +24,7 @@ import mlflow
 
 
 def run_single_experiment(csv_filename, project_root, filter_config, eng, 
-                         adapt_end_index=100, glv_init_code=None):
+                         adapt_end_index=100, glv_init_code=None, task_batch_folder=None):
     """
     处理单个CSV文件的实验
     
@@ -183,7 +183,12 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
         
         # 初始化日志文件
         log_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_dir = os.path.join(project_root, "navigation_logs")
+        # 如果指定了大任务文件夹，使用它；否则使用默认的navigation_logs目录
+        if task_batch_folder:
+            log_dir = task_batch_folder
+        else:
+            log_dir = os.path.join(project_root, "navigation_logs")
+        
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
         
@@ -313,7 +318,7 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
             # UKF融合结果
             matlab_ukf_avp_xyz = eng.llh2xyz_subfun(matlab_avp)
             ukf_fused_avp_xyz = np.array(matlab_ukf_avp_xyz).flatten()
-            ukf_fused_att_xyz = ukf_fused_avp_xyz[0:3]
+            ukf_fused_att_xyz = ukf_fused_avp_xyz[0:3] * 180.0 / np.pi
             ukf_fused_vel_xyz = ukf_fused_avp_xyz[3:6]
             ukf_fused_pos_xyz = ukf_fused_avp_xyz[6:9]
             
