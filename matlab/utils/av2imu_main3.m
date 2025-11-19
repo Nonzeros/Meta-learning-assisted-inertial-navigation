@@ -37,7 +37,7 @@ for i = 1:length(real_pav_q)
     [lat,lon,h] = enu2geodetic(real_pav_att(i,1),real_pav_att(i,2),real_pav_att(i,3),lat0,lon0,h0,wgs84); % 出来的经纬度是角度
     p = [lat*pi/180 ,lon*pi/180]; % 经纬度弧度表示
     real_pav_att(i,1:2) = p;
-    real_pav_att(i,6) = real_pav_att(i,6) + pi; % 将偏航角值域变为0~2pi
+    % real_pav_att(i,6) = real_pav_att(i,6) + pi; % 将偏航角值域变为0~2pi
 end
 
 %% 惯导反演算法
