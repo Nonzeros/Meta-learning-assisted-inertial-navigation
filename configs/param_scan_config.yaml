@@ -7,7 +7,7 @@
 # - "single": 单参数扫描，一次只改变一个参数，其他参数保持不变
 # - "grid": 网格搜索，测试所有参数组合
 # - "list": 列表模式，测试指定的参数组合
-scan_mode: "auto"  # "auto", "single", "grid", 或 "list"
+scan_mode: "single"  # "auto", "single", "grid", 或 "list"
 
 # 自动扫描配置（当scan_mode="auto"时使用）
 # 自动测试卡尔曼滤波和粒子滤波，以及所有相关参数
@@ -46,19 +46,18 @@ single_param_scan:
   # - "particle_filter.q0": 粒子滤波过程噪声标准差
   # - "kalman_filter.Q": 卡尔曼滤波过程噪声协方差
   # - "kalman_filter.R": 卡尔曼滤波观测噪声协方差
-  # - "matlab_ukf.Rk": MATLAB UKF观测噪声协方差矩阵
+  # - "matlab_ukf.Rk": MATLAB UKF观测噪声协方差矩阵（标量值会自动转换为[value, value, value]）
   # - "matlab_ukf.web": MATLAB UKF角随机游走
   # - "matlab_ukf.wdb": MATLAB UKF速度随机游走
   # - "matlab_ukf.phi": MATLAB UKF平台失准角
   # - "matlab_ukf.dvn": MATLAB UKF速度误差
   # - "matlab_ukf.dpos": MATLAB UKF位置误差
-  param_name: "lambda1"  # 要扫描的参数
+  param_name: "matlab_ukf.Rk"  # 要扫描的参数：UKF的Rk矩阵
   
   # 参数值列表
-  # 示例：扫描粒子数
-  # param_name: "numPar"
-  # param_values: [10, 20, 30, 50, 100]
-  param_values: [0, 0.1, 0.2, 0.3, 0.4, 0.5]
+  # 对于matlab_ukf.Rk，每个值会自动转换为[value, value, value]（三个方向使用相同的值）
+  # 测试Rk的每个元素分别为10, 1, 0.1, 0.01的情况
+  param_values: [10, 1, 0.1, 0.01]
 
 # 粒子滤波参数扫描（当filter.type=2时使用）
 particle_filter_scan:

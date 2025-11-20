@@ -130,7 +130,13 @@ def generate_param_combinations(scan_config: Dict[str, Any], base_config: Dict[s
             elif param_name == 'kalman_filter.R':
                 new_config['kalman_filter']['R'] = param_value
             elif param_name == 'matlab_ukf.Rk':
-                new_config['matlab_ukf']['Rk'] = param_value
+                # 如果param_value是标量，转换为三个相同元素的列表
+                if isinstance(param_value, (int, float)):
+                    new_config['matlab_ukf']['Rk'] = [param_value, param_value, param_value]
+                elif isinstance(param_value, list) and len(param_value) == 3:
+                    new_config['matlab_ukf']['Rk'] = param_value
+                else:
+                    raise ValueError(f"matlab_ukf.Rk 参数值必须是标量或长度为3的列表，当前值: {param_value}")
             elif param_name == 'matlab_ukf.web':
                 new_config['matlab_ukf']['imu_err']['web'] = param_value
             elif param_name == 'matlab_ukf.wdb':
@@ -290,8 +296,24 @@ def get_param_string(config: Dict[str, Any]) -> str:
     imu_err = ukf.get('imu_err', {})
     avp_err = ukf.get('avp_err', {})
     
-    # 简化Rk表示（使用科学计数法的指数部分）
-    Rk_str = f"Rk{int(Rk[0]*1e10)}"
+    # Rk表示：如果三个元素相同，只显示一个值；否则显示所有值
+    if len(Rk) == 3 and Rk[0] == Rk[1] == Rk[2]:
+        # 三个元素相同，只显示一个值
+        Rk_val = Rk[0]
+        if Rk_val >= 1:
+            Rk_str = f"Rk{Rk_val:.0f}"
+        elif Rk_val >= 0.1:
+            Rk_str = f"Rk{Rk_val:.1f}"
+        elif Rk_val >= 0.01:
+            Rk_str = f"Rk{Rk_val:.2f}"
+        elif Rk_val >= 0.001:
+            Rk_str = f"Rk{Rk_val:.3f}"
+        else:
+            # 很小的值，使用科学计数法
+            Rk_str = f"Rk{Rk_val:.2e}"
+    else:
+        # 三个元素不同，显示所有值
+        Rk_str = f"Rk[{Rk[0]},{Rk[1]},{Rk[2]}]"
     parts.append(f"UKF_{Rk_str}_web{imu_err.get('web', 0.0001)}_wdb{imu_err.get('wdb', 0.0001)}")
     parts.append(f"phi{avp_err.get('phi', [0.1, 0.1, 0.1])[0]}_dvn{avp_err.get('dvn', 0.1)}")
     

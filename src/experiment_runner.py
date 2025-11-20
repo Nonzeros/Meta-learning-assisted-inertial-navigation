@@ -135,8 +135,60 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
         avp0_change = last_avp
         imu = np.array(matlab_imu)
         
-        # UKF初始化
-        matlab_kf, matlab_ins = eng.SINS_dynamic_UKF153_init(matlab.double(avp0_change.tolist()), nargout=2)
+        # 从filter_config读取MATLAB UKF参数
+        matlab_ukf_config = filter_config.get('matlab_ukf', {})
+        imu_err = matlab_ukf_config.get('imu_err', {})
+        avp_err = matlab_ukf_config.get('avp_err', {})
+        pos_err = matlab_ukf_config.get('pos_err', [0.001, 0.001, 0.001])
+        Rk_diag = matlab_ukf_config.get('Rk', [0.000000010, 0.00000065, 0.0000011])
+        
+        # 准备MATLAB UKF初始化参数
+        imu_err_params = [
+            imu_err.get('eb', 10),
+            imu_err.get('db', 1000),
+            imu_err.get('web', 0.0001),
+            imu_err.get('wdb', 0.0001)
+        ]
+        phi_err = avp_err.get('phi', [0.1, 0.1, 0.1])
+        dvn_err = avp_err.get('dvn', 0.1)
+        dpos_err = avp_err.get('dpos', [1, 1, 3])
+        
+        # 确保所有参数都是列表格式（MATLAB Engine需要）
+        # 对于标量值（如dvn_err），需要转换为包含一个元素的列表
+        if not isinstance(dvn_err, (list, tuple, np.ndarray)):
+            dvn_err = [dvn_err]
+        # 对于已经是列表的参数，确保是列表类型
+        if isinstance(phi_err, np.ndarray):
+            phi_err = phi_err.tolist()
+        elif not isinstance(phi_err, (list, tuple)):
+            phi_err = [phi_err] if not hasattr(phi_err, '__iter__') else list(phi_err)
+        
+        if isinstance(dpos_err, np.ndarray):
+            dpos_err = dpos_err.tolist()
+        elif not isinstance(dpos_err, (list, tuple)):
+            dpos_err = [dpos_err] if not hasattr(dpos_err, '__iter__') else list(dpos_err)
+        
+        if isinstance(pos_err, np.ndarray):
+            pos_err = pos_err.tolist()
+        elif not isinstance(pos_err, (list, tuple)):
+            pos_err = [pos_err] if not hasattr(pos_err, '__iter__') else list(pos_err)
+        
+        if isinstance(Rk_diag, np.ndarray):
+            Rk_diag = Rk_diag.tolist()
+        elif not isinstance(Rk_diag, (list, tuple)):
+            Rk_diag = [Rk_diag] if not hasattr(Rk_diag, '__iter__') else list(Rk_diag)
+        
+        # UKF初始化（传递所有参数，包括Rk）
+        matlab_kf, matlab_ins = eng.SINS_dynamic_UKF153_init(
+            matlab.double(avp0_change.tolist()),
+            matlab.double(imu_err_params),
+            matlab.double(phi_err),
+            matlab.double(dvn_err),
+            matlab.double(dpos_err),
+            matlab.double(pos_err),
+            matlab.double(Rk_diag),
+            nargout=2
+        )
         
         # 获取UKF参数
         try:
