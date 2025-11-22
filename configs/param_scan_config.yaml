@@ -52,12 +52,12 @@ single_param_scan:
   # - "matlab_ukf.phi": MATLAB UKF平台失准角
   # - "matlab_ukf.dvn": MATLAB UKF速度误差
   # - "matlab_ukf.dpos": MATLAB UKF位置误差
-  param_name: "matlab_ukf.Rk"  # 要扫描的参数：UKF的Rk矩阵
+  param_name: "numPar"  # 要扫描的参数：粒子滤波的粒子数量
   
   # 参数值列表
-  # 对于matlab_ukf.Rk，每个值会自动转换为[value, value, value]（三个方向使用相同的值）
-  # 测试Rk的每个元素分别为10, 1, 0.1, 0.01的情况
-  param_values: [10, 1, 0.1, 0.01]
+  # 测试不同的粒子数量：20, 30, 50, 100, 200, 300, 500, 1000
+  # 总共：8个参数组合，每个组合运行5个文件 = 40个任务
+  param_values: [20, 30, 50, 100, 200, 300, 500, 1000]
 
 # 粒子滤波参数扫描（当filter.type=2时使用）
 particle_filter_scan:

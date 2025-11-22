@@ -217,6 +217,43 @@ def create_summary_table(df):
                     csv_filename = run_name
         summary_row['CSV文件'] = csv_filename if csv_filename else 'Unknown'
         
+        # 计算速度改善率（UKF相比纯惯导的改善百分比）
+        # 速度东方向改善率
+        ukf_vel_east = row.get('metric_ukf_vel_rmse_east', None)
+        pure_vel_east = row.get('metric_pure_ins_vel_rmse_east', None)
+        if pd.notna(ukf_vel_east) and pd.notna(pure_vel_east) and pure_vel_east > 0:
+            vel_east_improvement = ((pure_vel_east - ukf_vel_east) / pure_vel_east * 100)
+            summary_row['速度改善率_东(%)'] = f"{vel_east_improvement:.2f}"
+        else:
+            summary_row['速度改善率_东(%)'] = 'N/A'
+        
+        # 速度北方向改善率
+        ukf_vel_north = row.get('metric_ukf_vel_rmse_north', None)
+        pure_vel_north = row.get('metric_pure_ins_vel_rmse_north', None)
+        if pd.notna(ukf_vel_north) and pd.notna(pure_vel_north) and pure_vel_north > 0:
+            vel_north_improvement = ((pure_vel_north - ukf_vel_north) / pure_vel_north * 100)
+            summary_row['速度改善率_北(%)'] = f"{vel_north_improvement:.2f}"
+        else:
+            summary_row['速度改善率_北(%)'] = 'N/A'
+        
+        # 速度天方向改善率
+        ukf_vel_up = row.get('metric_ukf_vel_rmse_up', None)
+        pure_vel_up = row.get('metric_pure_ins_vel_rmse_up', None)
+        if pd.notna(ukf_vel_up) and pd.notna(pure_vel_up) and pure_vel_up > 0:
+            vel_up_improvement = ((pure_vel_up - ukf_vel_up) / pure_vel_up * 100)
+            summary_row['速度改善率_天(%)'] = f"{vel_up_improvement:.2f}"
+        else:
+            summary_row['速度改善率_天(%)'] = 'N/A'
+        
+        # 速度总RMSE改善率
+        ukf_vel_total = row.get('metric_ukf_vel_rmse_total', None)
+        pure_vel_total = row.get('metric_pure_ins_vel_rmse_total', None)
+        if pd.notna(ukf_vel_total) and pd.notna(pure_vel_total) and pure_vel_total > 0:
+            vel_total_improvement = ((pure_vel_total - ukf_vel_total) / pure_vel_total * 100)
+            summary_row['速度改善率_总(%)'] = f"{vel_total_improvement:.2f}"
+        else:
+            summary_row['速度改善率_总(%)'] = 'N/A'
+        
         # 实验参数
         filter_type = row.get('param_filter_solve_type', '')
         if filter_type == '1':
@@ -265,25 +302,6 @@ def create_summary_table(df):
         summary_row['气动力RMSE_y'] = f"{row.get('metric_fa_rmse_y', 0):.6f}" if pd.notna(row.get('metric_fa_rmse_y')) else 'N/A'
         summary_row['气动力RMSE_z'] = f"{row.get('metric_fa_rmse_z', 0):.6f}" if pd.notna(row.get('metric_fa_rmse_z')) else 'N/A'
         summary_row['气动力RMSE_总'] = f"{row.get('metric_fa_rmse_total', 0):.6f}" if pd.notna(row.get('metric_fa_rmse_total')) else 'N/A'
-        
-        # 计算改善率（UKF相比纯惯导的改善百分比）
-        # 速度总RMSE改善率
-        ukf_vel_total = row.get('metric_ukf_vel_rmse_total', None)
-        pure_vel_total = row.get('metric_pure_ins_vel_rmse_total', None)
-        if pd.notna(ukf_vel_total) and pd.notna(pure_vel_total) and pure_vel_total > 0:
-            vel_improvement = ((pure_vel_total - ukf_vel_total) / pure_vel_total * 100)
-            summary_row['速度改善率(%)'] = f"{vel_improvement:.2f}"
-        else:
-            summary_row['速度改善率(%)'] = 'N/A'
-        
-        # 位置总RMSE改善率
-        ukf_pos_total = row.get('metric_ukf_pos_rmse_total', None)
-        pure_pos_total = row.get('metric_pure_ins_pos_rmse_total', None)
-        if pd.notna(ukf_pos_total) and pd.notna(pure_pos_total) and pure_pos_total > 0:
-            pos_improvement = ((pure_pos_total - ukf_pos_total) / pure_pos_total * 100)
-            summary_row['位置改善率(%)'] = f"{pos_improvement:.2f}"
-        else:
-            summary_row['位置改善率(%)'] = 'N/A'
         
         summary_data.append(summary_row)
     
@@ -647,59 +665,9 @@ def main():
             # 获取所有列名（除了内部列）
             table_columns = [col for col in display_df.columns if col not in ['run_id', 'run_name_key']]
             
-            # 为改善率列添加颜色编码（通过样式化DataFrame）
-            # 注意：st.data_editor不支持样式，但我们可以创建一个带颜色的说明
-            if '速度改善率(%)' in display_df.columns and '位置改善率(%)' in display_df.columns:
-                # 创建样式化的说明
-                improvement_info = []
-                for idx, row in display_df.iterrows():
-                    vel_imp = row.get('速度改善率(%)', 'N/A')
-                    pos_imp = row.get('位置改善率(%)', 'N/A')
-                    
-                    # 解析改善率值
-                    def parse_improvement(imp_str):
-                        if imp_str == 'N/A' or pd.isna(imp_str):
-                            return None
-                        try:
-                            return float(str(imp_str).replace('%', ''))
-                        except:
-                            return None
-                    
-                    vel_val = parse_improvement(vel_imp)
-                    pos_val = parse_improvement(pos_imp)
-                    
-                    # 根据改善率设置颜色标签
-                    def get_color_label(val):
-                        if val is None:
-                            return '⚪ 无数据'
-                        elif val >= 20:
-                            return '🟢 优秀 (≥20%)'
-                        elif val >= 10:
-                            return '🟡 良好 (10-20%)'
-                        elif val >= 0:
-                            return '🟠 一般 (0-10%)'
-                        else:
-                            return '🔴 较差 (<0%)'
-                    
-                    if vel_val is not None or pos_val is not None:
-                        improvement_info.append({
-                            '行': idx + 1,
-                            '速度改善': get_color_label(vel_val),
-                            '位置改善': get_color_label(pos_val)
-                        })
-                
-                if improvement_info:
-                    # 在表格上方显示改善率颜色图例
-                    col_legend1, col_legend2, col_legend3, col_legend4 = st.columns(4)
-                    with col_legend1:
-                        st.markdown("**🟢 优秀**: ≥20%")
-                    with col_legend2:
-                        st.markdown("**🟡 良好**: 10-20%")
-                    with col_legend3:
-                        st.markdown("**🟠 一般**: 0-10%")
-                    with col_legend4:
-                        st.markdown("**🔴 较差**: <0%")
-                    st.markdown("<br>", unsafe_allow_html=True)
+            # 改善率说明（速度改善率已显示在CSV文件列右边）
+            if '速度改善率_总(%)' in display_df.columns:
+                st.caption("💡 改善率说明：正值表示UKF相比纯惯导有改善，负值表示性能下降。改善率越高越好。")
             
             # 初始化复选框列
             checkbox_key_state = f"checkbox_df_{len(display_df)}"
@@ -894,6 +862,10 @@ def main():
                                 except:
                                     return None
                             
+                            # 获取速度改善率（使用新的列名）
+                            vel_improvement_str = row.get('速度改善率_总(%)', 'N/A')
+                            vel_improvement = safe_float(vel_improvement_str.replace('%', '')) if vel_improvement_str != 'N/A' else None
+                            
                             analysis_data.append({
                                 '参数值': str(param_val),
                                 'CSV文件': csv_file,
@@ -901,8 +873,7 @@ def main():
                                 'UKF位置RMSE': safe_float(ukf_pos_total),
                                 '纯惯导速度RMSE': safe_float(pure_vel_total),
                                 '纯惯导位置RMSE': safe_float(pure_pos_total),
-                                '速度改善率': safe_float(row.get('速度改善率(%)', 'N/A').replace('%', '')) if row.get('速度改善率(%)', 'N/A') != 'N/A' else None,
-                                '位置改善率': safe_float(row.get('位置改善率(%)', 'N/A').replace('%', '')) if row.get('位置改善率(%)', 'N/A') != 'N/A' else None,
+                                '速度改善率': vel_improvement,
                             })
                     
                     analysis_df = pd.DataFrame(analysis_data)
