@@ -140,7 +140,7 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
         imu_err = matlab_ukf_config.get('imu_err', {})
         avp_err = matlab_ukf_config.get('avp_err', {})
         pos_err = matlab_ukf_config.get('pos_err', [0.001, 0.001, 0.001])
-        Rk_diag = matlab_ukf_config.get('Rk', [0.000000010, 0.00000065, 0.0000011])
+        # Rk矩阵通过pos_err设置，不再使用Rk_diag覆盖
         
         # 准备MATLAB UKF初始化参数
         imu_err_params = [
@@ -173,12 +173,8 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
         elif not isinstance(pos_err, (list, tuple)):
             pos_err = [pos_err] if not hasattr(pos_err, '__iter__') else list(pos_err)
         
-        if isinstance(Rk_diag, np.ndarray):
-            Rk_diag = Rk_diag.tolist()
-        elif not isinstance(Rk_diag, (list, tuple)):
-            Rk_diag = [Rk_diag] if not hasattr(Rk_diag, '__iter__') else list(Rk_diag)
-        
-        # UKF初始化（传递所有参数，包括Rk）
+        # UKF初始化
+        # Rk矩阵通过pos_err设置：rk = poserrset(pos_err)，然后kfinit自动设置 kf.Rk = diag(rk)^2
         matlab_kf, matlab_ins = eng.SINS_dynamic_UKF153_init(
             matlab.double(avp0_change.tolist()),
             matlab.double(imu_err_params),
@@ -186,7 +182,6 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
             matlab.double(dvn_err),
             matlab.double(dpos_err),
             matlab.double(pos_err),
-            matlab.double(Rk_diag),
             nargout=2
         )
         
@@ -199,6 +194,35 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
             ukf_Qk = None
             ukf_Rk = None
             ukf_Pxk = None
+        
+        # 打印UKF的Rk和Qk值（用于调试和验证）
+        print(f"\n  ========== UKF参数值 ==========")
+        if ukf_Rk is not None:
+            print(f"  Rk矩阵 (观测噪声协方差):")
+            print(f"    完整矩阵:\n{ukf_Rk}")
+            print(f"    对角元素: {np.diag(ukf_Rk)}")
+            print(f"    矩阵大小: {ukf_Rk.shape}")
+            # 显示输入参数信息
+            print(f"    来源: pos_err = {pos_err} (通过poserrset设置rk，kfinit自动设置Rk = diag(rk)^2)")
+        else:
+            print(f"  Rk矩阵: 未获取到")
+        
+        if ukf_Qk is not None:
+            print(f"  Qk矩阵 (过程噪声协方差):")
+            print(f"    矩阵大小: {ukf_Qk.shape}")
+            # 显示对角元素（Qk通常是对角矩阵）
+            diag_Qk = np.diag(ukf_Qk)
+            print(f"    对角元素 (前10个): {diag_Qk[:min(10, len(diag_Qk))]}")
+            if ukf_Qk.size <= 25:
+                print(f"    完整矩阵:\n{ukf_Qk}")
+            else:
+                print(f"    完整矩阵 (前5x5子矩阵):\n{ukf_Qk[:5, :5]}")
+            # 显示输入参数信息
+            print(f"    来源: IMU误差参数 = [eb={imu_err_params[0]}, db={imu_err_params[1]}, web={imu_err_params[2]}, wdb={imu_err_params[3]}]")
+            print(f"          (kfinit使用imuerr.web和imuerr.wdb设置Qt，然后Qk = Qt*nts)")
+        else:
+            print(f"  Qk矩阵: 未获取到")
+        print(f"  =================================\n")
         
         # 6. 动力学模型初始化
         final_model = mlmodel.load_model(modelname=model_name)
@@ -588,13 +612,58 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
             'filter_Q': filter_config.get('kalman_filter', {}).get('Q', 0.1),
         }
         
+        # 记录UKF参数：使用原始输入参数值，而不是转换后的矩阵
+        # 这样在可视化平台上可以更方便地比较参数
         ukf_params = {}
+        
+        # 记录位置误差参数（用于设置Rk矩阵）
+        # pos_err格式：[rx, ry, rz]，单位：米
+        # 参考：rk = poserrset([1;1;3])，kfinit会自动设置 kf.Rk = diag(rk)^2
+        ukf_params['pos_err_rx'] = float(pos_err[0]) if len(pos_err) > 0 else 0.0
+        ukf_params['pos_err_ry'] = float(pos_err[1]) if len(pos_err) > 1 else 0.0
+        ukf_params['pos_err_rz'] = float(pos_err[2]) if len(pos_err) > 2 else 0.0
+        ukf_params['pos_err'] = str(pos_err)  # 完整列表，便于查看
+        
+        # 记录IMU误差参数（用于设置Qk矩阵）
+        # imu_err_params格式：[eb, db, web, wdb]
+        # eb: 陀螺常值偏置 (deg/h)
+        # db: 加速度计常值偏置 (ug)
+        # web: 角随机游走 (deg/sqrt(h))
+        # wdb: 速度随机游走 (ug/sqrt(Hz))
+        ukf_params['imu_err_eb'] = float(imu_err_params[0]) if len(imu_err_params) > 0 else 0.0
+        ukf_params['imu_err_db'] = float(imu_err_params[1]) if len(imu_err_params) > 1 else 0.0
+        ukf_params['imu_err_web'] = float(imu_err_params[2]) if len(imu_err_params) > 2 else 0.0
+        ukf_params['imu_err_wdb'] = float(imu_err_params[3]) if len(imu_err_params) > 3 else 0.0
+        
+        # 记录AVP误差参数（用于设置Pxk矩阵）
+        ukf_params['avp_err_phi'] = str(phi_err)  # 平台失准角 [phi_x, phi_y, phi_z] (arcmin)
+        ukf_params['avp_err_dvn'] = float(dvn_err[0]) if isinstance(dvn_err, (list, tuple, np.ndarray)) else float(dvn_err)  # 速度误差 (m/s)
+        ukf_params['avp_err_dpos'] = str(dpos_err)  # 位置误差 [dlat, dlon, dhgt] (m)
+        
+        # 保留转换后的矩阵值作为参考（可选，用于调试）
+        # 注意：这些是转换后的矩阵，主要用于调试，可视化时应该使用上面的原始参数
         if ukf_Qk is not None:
-            ukf_params['Qk'] = ukf_Qk
+            # Qk矩阵较大，只记录对角元素和统计信息
+            if ukf_Qk.size <= 9:
+                ukf_params['Qk_matrix'] = str(ukf_Qk.tolist())
+            else:
+                ukf_params['Qk_matrix_shape'] = str(ukf_Qk.shape)
+                ukf_params['Qk_matrix_diag'] = str(np.diag(ukf_Qk).tolist())
+        
         if ukf_Rk is not None:
-            ukf_params['Rk'] = ukf_Rk
+            # Rk矩阵较小，记录完整矩阵
+            if ukf_Rk.size <= 9:
+                ukf_params['Rk_matrix'] = str(ukf_Rk.tolist())
+                ukf_params['Rk_matrix_diag'] = str(np.diag(ukf_Rk).tolist())
+        
         if ukf_Pxk is not None:
-            ukf_params['Pxk'] = ukf_Pxk
+            # Pxk矩阵很大，只记录对角元素的前几个
+            if ukf_Pxk.size <= 25:
+                ukf_params['Pxk_matrix_diag'] = str(np.diag(ukf_Pxk).tolist())
+            else:
+                diag_pxk = np.diag(ukf_Pxk)
+                ukf_params['Pxk_matrix_diag_first10'] = str(diag_pxk[:10].tolist())
+                ukf_params['Pxk_matrix_shape'] = str(ukf_Pxk.shape)
         
         dataset_params = {
             'dataset_folder': dataset_folder,

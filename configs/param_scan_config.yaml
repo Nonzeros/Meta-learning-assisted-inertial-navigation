@@ -46,7 +46,7 @@ single_param_scan:
   # - "particle_filter.q0": 粒子滤波过程噪声标准差
   # - "kalman_filter.Q": 卡尔曼滤波过程噪声协方差
   # - "kalman_filter.R": 卡尔曼滤波观测噪声协方差
-  # - "matlab_ukf.Rk": MATLAB UKF观测噪声协方差矩阵（标量值会自动转换为[value, value, value]）
+  # - "matlab_ukf.pos_err": MATLAB UKF位置误差（用于设置Rk矩阵，格式：[rx, ry, rz] 单位：米）
   # - "matlab_ukf.web": MATLAB UKF角随机游走
   # - "matlab_ukf.wdb": MATLAB UKF速度随机游走
   # - "matlab_ukf.phi": MATLAB UKF平台失准角
@@ -75,12 +75,13 @@ kalman_filter_scan:
 
 # MATLAB UKF参数扫描
 matlab_ukf_scan:
-  # Rk值列表（观测噪声协方差矩阵的对角元素）
-  # 格式：[rx, ry, rz]
-  Rk_values:
-    - [0.000000010, 0.00000065, 0.0000011]  # 默认值
-    - [0.000000005, 0.00000032, 0.00000055]  # 减半
-    - [0.000000020, 0.00000130, 0.0000022]   # 加倍
+  # pos_err值列表（位置误差，用于设置Rk矩阵）
+  # 格式：[rx, ry, rz] 单位：米
+  # 通过poserrset设置rk，然后kfinit自动设置 kf.Rk = diag(rk)^2
+  pos_err_values:
+    - [0.001, 0.001, 0.001]  # 默认值
+    - [0.0005, 0.0005, 0.0005]  # 减半
+    - [0.002, 0.002, 0.002]   # 加倍
   
   # web值列表（角随机游走，用于Q矩阵）
   web_values: [0.00005, 0.0001, 0.0002]
@@ -111,7 +112,7 @@ param_combinations:
   #     R: 0.1
   #     q0: 0.1
   #   matlab_ukf:
-  #     Rk: [0.000000010, 0.00000065, 0.0000011]
+  #     pos_err: [0.001, 0.001, 0.001]  # 位置误差，用于设置Rk矩阵
   #     web: 0.0001
   #     wdb: 0.0001
   #     phi: [0.1, 0.1, 0.1]

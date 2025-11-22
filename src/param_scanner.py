@@ -129,14 +129,14 @@ def generate_param_combinations(scan_config: Dict[str, Any], base_config: Dict[s
                 new_config['kalman_filter']['Q'] = param_value
             elif param_name == 'kalman_filter.R':
                 new_config['kalman_filter']['R'] = param_value
-            elif param_name == 'matlab_ukf.Rk':
-                # 如果param_value是标量，转换为三个相同元素的列表
+            elif param_name == 'matlab_ukf.pos_err':
+                # pos_err用于设置Rk矩阵：rk = poserrset(pos_err)，然后kfinit自动设置 kf.Rk = diag(rk)^2
                 if isinstance(param_value, (int, float)):
-                    new_config['matlab_ukf']['Rk'] = [param_value, param_value, param_value]
+                    new_config['matlab_ukf']['pos_err'] = [param_value, param_value, param_value]
                 elif isinstance(param_value, list) and len(param_value) == 3:
-                    new_config['matlab_ukf']['Rk'] = param_value
+                    new_config['matlab_ukf']['pos_err'] = param_value
                 else:
-                    raise ValueError(f"matlab_ukf.Rk 参数值必须是标量或长度为3的列表，当前值: {param_value}")
+                    raise ValueError(f"matlab_ukf.pos_err 参数值必须是标量或长度为3的列表，当前值: {param_value}")
             elif param_name == 'matlab_ukf.web':
                 new_config['matlab_ukf']['imu_err']['web'] = param_value
             elif param_name == 'matlab_ukf.wdb':
@@ -170,7 +170,7 @@ def generate_param_combinations(scan_config: Dict[str, Any], base_config: Dict[s
             # 更新MATLAB UKF参数
             if 'matlab_ukf' in param_combo:
                 for key, value in param_combo['matlab_ukf'].items():
-                    if key in ['Rk', 'phi', 'dpos']:
+                    if key in ['pos_err', 'phi', 'dpos']:
                         new_config['matlab_ukf'][key] = value
                     elif key in ['web', 'wdb', 'dvn']:
                         if key == 'web':
@@ -236,7 +236,7 @@ def _generate_ukf_combinations(scan_config: Dict[str, Any], base_config: Dict[st
     ukf_scan = scan_config.get('matlab_ukf_scan', {})
     
     # 获取参数列表
-    Rk_values = ukf_scan.get('Rk_values', [[0.000000010, 0.00000065, 0.0000011]])
+    pos_err_values = ukf_scan.get('pos_err_values', [[0.001, 0.001, 0.001]])
     web_values = ukf_scan.get('web_values', [0.0001])
     wdb_values = ukf_scan.get('wdb_values', [0.0001])
     phi_values = ukf_scan.get('phi_values', [[0.1, 0.1, 0.1]])
@@ -244,11 +244,11 @@ def _generate_ukf_combinations(scan_config: Dict[str, Any], base_config: Dict[st
     dpos_values = ukf_scan.get('dpos_values', [[1, 1, 3]])
     
     # 生成所有组合
-    for Rk, web, wdb, phi, dvn, dpos in itertools.product(
-        Rk_values, web_values, wdb_values, phi_values, dvn_values, dpos_values
+    for pos_err, web, wdb, phi, dvn, dpos in itertools.product(
+        pos_err_values, web_values, wdb_values, phi_values, dvn_values, dpos_values
     ):
         new_config = copy.deepcopy(base_config)
-        new_config['matlab_ukf']['Rk'] = Rk
+        new_config['matlab_ukf']['pos_err'] = pos_err
         new_config['matlab_ukf']['imu_err']['web'] = web
         new_config['matlab_ukf']['imu_err']['wdb'] = wdb
         new_config['matlab_ukf']['avp_err']['phi'] = phi
@@ -292,29 +292,41 @@ def get_param_string(config: Dict[str, Any]) -> str:
     
     # MATLAB UKF参数
     ukf = config.get('matlab_ukf', {})
-    Rk = ukf.get('Rk', [0.000000010, 0.00000065, 0.0000011])
     imu_err = ukf.get('imu_err', {})
     avp_err = ukf.get('avp_err', {})
     
-    # Rk表示：如果三个元素相同，只显示一个值；否则显示所有值
-    if len(Rk) == 3 and Rk[0] == Rk[1] == Rk[2]:
-        # 三个元素相同，只显示一个值
-        Rk_val = Rk[0]
-        if Rk_val >= 1:
-            Rk_str = f"Rk{Rk_val:.0f}"
-        elif Rk_val >= 0.1:
-            Rk_str = f"Rk{Rk_val:.1f}"
-        elif Rk_val >= 0.01:
-            Rk_str = f"Rk{Rk_val:.2f}"
-        elif Rk_val >= 0.001:
-            Rk_str = f"Rk{Rk_val:.3f}"
+    # 检查是否配置了 Rk，如果未配置则使用 pos_err 来生成名称
+    Rk = ukf.get('Rk', None)
+    if Rk is not None:
+        # 如果配置了 Rk，使用 Rk 值
+        # Rk表示：如果三个元素相同，只显示一个值；否则显示所有值
+        if len(Rk) == 3 and Rk[0] == Rk[1] == Rk[2]:
+            # 三个元素相同，只显示一个值
+            Rk_val = Rk[0]
+            if Rk_val >= 1:
+                Rk_str = f"Rk{Rk_val:.0f}"
+            elif Rk_val >= 0.1:
+                Rk_str = f"Rk{Rk_val:.1f}"
+            elif Rk_val >= 0.01:
+                Rk_str = f"Rk{Rk_val:.2f}"
+            elif Rk_val >= 0.001:
+                Rk_str = f"Rk{Rk_val:.3f}"
+            else:
+                # 很小的值，使用科学计数法
+                Rk_str = f"Rk{Rk_val:.2e}"
         else:
-            # 很小的值，使用科学计数法
-            Rk_str = f"Rk{Rk_val:.2e}"
+            # 三个元素不同，显示所有值
+            Rk_str = f"Rk[{Rk[0]},{Rk[1]},{Rk[2]}]"
+        parts.append(f"UKF_{Rk_str}_web{imu_err.get('web', 0.0001)}_wdb{imu_err.get('wdb', 0.0001)}")
     else:
-        # 三个元素不同，显示所有值
-        Rk_str = f"Rk[{Rk[0]},{Rk[1]},{Rk[2]}]"
-    parts.append(f"UKF_{Rk_str}_web{imu_err.get('web', 0.0001)}_wdb{imu_err.get('wdb', 0.0001)}")
+        # 如果未配置 Rk，使用 pos_err 来生成名称（pos_err 会通过 poserrset 设置 rk）
+        pos_err = ukf.get('pos_err', [0.001, 0.001, 0.001])
+        if isinstance(pos_err, (list, tuple)) and len(pos_err) >= 3:
+            # 使用 pos_err 的值来生成名称
+            pos_err_str = f"pos[{pos_err[0]},{pos_err[1]},{pos_err[2]}]"
+        else:
+            pos_err_str = f"pos{pos_err}"
+        parts.append(f"UKF_{pos_err_str}_web{imu_err.get('web', 0.0001)}_wdb{imu_err.get('wdb', 0.0001)}")
     parts.append(f"phi{avp_err.get('phi', [0.1, 0.1, 0.1])[0]}_dvn{avp_err.get('dvn', 0.1)}")
     
     return "_".join(parts)
