@@ -256,6 +256,8 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
         neural_fa_collection = []
         real_fa_collection = []
         fa_time_collection = []
+        neural_f_total_collection = []
+        real_fa_total_collection = []
         
         # 初始化日志文件
         log_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -282,6 +284,9 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
             'pwm0', 'pwm1', 'pwm2', 'pwm3',
             'neural_fa_x', 'neural_fa_y', 'neural_fa_z',
             'calculated_fa_x', 'calculated_fa_y', 'calculated_fa_z',
+            'real_fa_x', 'real_fa_y', 'real_fa_z',
+            'neural_f_total_x', 'neural_f_total_y', 'neural_f_total_z',
+            'real_fa_total_x', 'real_fa_total_y', 'real_fa_total_z',
             'dynamic_a_0', 'dynamic_a_1', 'dynamic_a_2',
             'dynamic_pos_x', 'dynamic_pos_y', 'dynamic_pos_z',
             'dynamic_vel_x', 'dynamic_vel_y', 'dynamic_vel_z',
@@ -368,10 +373,25 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
             dynamic_vdot_xyz = dynamic_vdot.flatten()
             neural_fa_xyz = neural_fa.flatten()
             
+            # 计算 total 力：neural_f + R@fT + m*g 和 real_fa + R@fT + m*g
+            m0 = 2.6
+            g_ = 9.8
+            m_g = np.array([0, 0, -m0 * g_])  # 重力（惯性坐标系）
+            R_fT = (Ri @ fT).flatten()  # 推力转换到惯性坐标系
+            neural_f_total_xyz = neural_fa_xyz + R_fT + m_g
+            
             if loop_index-1 < len(real_fas):
+                real_fa_xyz = real_fas[loop_index-1, :]
+                real_fa_total_xyz = real_fa_xyz + R_fT + m_g
+                
                 neural_fa_collection.append(neural_fa_xyz)
-                real_fa_collection.append(real_fas[loop_index-1, :])
+                real_fa_collection.append(real_fa_xyz)
+                neural_f_total_collection.append(neural_f_total_xyz)
+                real_fa_total_collection.append(real_fa_total_xyz)
                 fa_time_collection.append(ts[loop_index-1] if loop_index-1 < len(ts) else loop_index * 0.02)
+            else:
+                real_fa_xyz = np.array([0.0, 0.0, 0.0])
+                real_fa_total_xyz = neural_f_total_xyz  # 如果没有真实值，使用neural_f_total作为占位符
             
             # UKF更新
             imu_index = loop_index - first_index
@@ -477,6 +497,9 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
                 current_pwm[3] if len(current_pwm) > 3 else 0,
                 neural_fa_xyz[0], neural_fa_xyz[1], neural_fa_xyz[2],
                 outputlabel[0,0], outputlabel[1,0], outputlabel[2,0],
+                real_fa_xyz[0], real_fa_xyz[1], real_fa_xyz[2],
+                neural_f_total_xyz[0], neural_f_total_xyz[1], neural_f_total_xyz[2],
+                real_fa_total_xyz[0], real_fa_total_xyz[1], real_fa_total_xyz[2],
                 dynamic_a[0,0], dynamic_a[1,0], dynamic_a[2,0],
                 dynamic_pos_xyz[0], dynamic_pos_xyz[1], dynamic_pos_xyz[2],
                 dynamic_vel_xyz[0], dynamic_vel_xyz[1], dynamic_vel_xyz[2],
@@ -595,6 +618,17 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
             fa_rmse = np.array([0.0, 0.0, 0.0])
             fa_rmse_total = 0.0
         
+        # 计算 neural_f_total vs real_fa_total 的RMSE
+        if len(neural_f_total_collection) > 0 and len(real_fa_total_collection) > 0:
+            neural_f_total_array = np.array(neural_f_total_collection)
+            real_fa_total_array = np.array(real_fa_total_collection)
+            fa_total_error = neural_f_total_array - real_fa_total_array
+            fa_total_rmse = np.sqrt(np.mean(fa_total_error**2, axis=0))
+            fa_total_rmse_total = np.sqrt(np.mean(fa_total_error**2))
+        else:
+            fa_total_rmse = np.array([0.0, 0.0, 0.0])
+            fa_total_rmse_total = 0.0
+        
         # 9. 记录到MLflow
         model_params = {
             'model_dataset': 'neural-fly',
@@ -692,6 +726,10 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
             'fa_rmse_y': float(fa_rmse[1]),
             'fa_rmse_z': float(fa_rmse[2]),
             'fa_rmse_total': float(fa_rmse_total),
+            'neural_fa_total_rmse_x': float(fa_total_rmse[0]),
+            'neural_fa_total_rmse_y': float(fa_total_rmse[1]),
+            'neural_fa_total_rmse_z': float(fa_total_rmse[2]),
+            'neural_fa_total_rmse_total': float(fa_total_rmse_total),
         }
         
         log_experiment_params(model_params, filter_params, ukf_params, dataset_params)

@@ -507,6 +507,114 @@ def plot_time_series(log_df, run_name: str):
     return pos_figs, vel_figs, att_figs
 
 
+def plot_aerodynamic_force(log_df, run_name: str):
+    """
+    绘制气动力时间序列对比图
+    1. neural_f vs real_fa（X、Y、Z三个方向）
+    2. neural_f_total vs real_fa_total（X、Y、Z三个方向）
+    """
+    if log_df is None or log_df.empty:
+        return [], []
+    
+    time_col = 'time'
+    if time_col not in log_df.columns:
+        st.warning("日志文件中没有找到时间列")
+        return [], []
+    
+    # 排除最后几个数据点（与main.py保持一致）
+    exclude_last = min(5, len(log_df) - 1)
+    if exclude_last > 0:
+        log_df_plot = log_df.iloc[:-exclude_last].copy()
+    else:
+        log_df_plot = log_df.copy()
+    
+    # 图1：neural_f vs real_fa（X、Y、Z各一张）
+    fa_figs = []
+    fa_directions = ['x', 'y', 'z']
+    fa_labels = ['X', 'Y', 'Z']
+    
+    for dir, label in zip(fa_directions, fa_labels):
+        fig = go.Figure()
+        
+        # 真实气动力 - real_fa_x/y/z
+        real_col = f'real_fa_{dir}'
+        if real_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[real_col])
+            if valid_mask.any():
+                fig.add_trace(go.Scatter(
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, real_col],
+                    name='真实气动力',
+                    mode='lines',
+                    line=dict(color='#06A77D', width=2, dash='dot')
+                ))
+        
+        # 神经网络预测气动力 - neural_fa_x/y/z
+        neural_col = f'neural_fa_{dir}'
+        if neural_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[neural_col])
+            if valid_mask.any():
+                fig.add_trace(go.Scatter(
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, neural_col],
+                    name='神经网络预测',
+                    mode='lines',
+                    line=dict(color='#2E86AB', width=2)
+                ))
+        
+        fig.update_layout(
+            title=f'气动力{label}方向对比（neural_f vs real_fa）',
+            xaxis_title='时间 (s)',
+            yaxis_title=f'气动力{label} (N)',
+            height=400,
+            legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
+        )
+        fa_figs.append(fig)
+    
+    # 图2：neural_f_total vs real_fa_total（X、Y、Z各一张）
+    fa_total_figs = []
+    
+    for dir, label in zip(fa_directions, fa_labels):
+        fig = go.Figure()
+        
+        # 真实总力 - real_fa_total_x/y/z
+        real_total_col = f'real_fa_total_{dir}'
+        if real_total_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[real_total_col])
+            if valid_mask.any():
+                fig.add_trace(go.Scatter(
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, real_total_col],
+                    name='真实总力（real_fa + R@fT + m*g）',
+                    mode='lines',
+                    line=dict(color='#06A77D', width=2, dash='dot')
+                ))
+        
+        # 神经网络预测总力 - neural_f_total_x/y/z
+        neural_total_col = f'neural_f_total_{dir}'
+        if neural_total_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[neural_total_col])
+            if valid_mask.any():
+                fig.add_trace(go.Scatter(
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, neural_total_col],
+                    name='神经网络预测总力（neural_f + R@fT + m*g）',
+                    mode='lines',
+                    line=dict(color='#2E86AB', width=2)
+                ))
+        
+        fig.update_layout(
+            title=f'总力{label}方向对比（neural_f_total vs real_fa_total）',
+            xaxis_title='时间 (s)',
+            yaxis_title=f'总力{label} (N)',
+            height=400,
+            legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
+        )
+        fa_total_figs.append(fig)
+    
+    return fa_figs, fa_total_figs
+
+
 def main():
     st.set_page_config(
         page_title="导航融合实验可视化",
@@ -1365,6 +1473,63 @@ def main():
                 else:
                     st.info("位置RMSE数据不可用")
             
+            # 气动力RMSE显示
+            st.markdown("### 气动力RMSE")
+            col_fa1, col_fa2 = st.columns(2)
+            
+            with col_fa1:
+                st.markdown("#### 气动力RMSE（neural_f vs real_fa）")
+                fa_data = []
+                for direction in ['X', 'Y', 'Z', '总RMSE']:
+                    metric_key = f'metric_fa_rmse_{direction.lower()}' if direction != '总RMSE' else 'metric_fa_rmse_total'
+                    if direction == 'X':
+                        metric_key = 'metric_fa_rmse_x'
+                    elif direction == 'Y':
+                        metric_key = 'metric_fa_rmse_y'
+                    elif direction == 'Z':
+                        metric_key = 'metric_fa_rmse_z'
+                    else:
+                        metric_key = 'metric_fa_rmse_total'
+                    
+                    fa_val = selected_row.get(metric_key, None)
+                    if fa_val is not None:
+                        fa_data.append({
+                            '方向': direction,
+                            'RMSE (N)': f"{fa_val:.6f}"
+                        })
+                
+                if fa_data:
+                    fa_df = pd.DataFrame(fa_data)
+                    st.dataframe(fa_df, use_container_width=True, hide_index=True)
+                else:
+                    st.info("气动力RMSE数据不可用")
+            
+            with col_fa2:
+                st.markdown("#### 总力RMSE（neural_f_total vs real_fa_total）")
+                fa_total_data = []
+                for direction in ['X', 'Y', 'Z', '总RMSE']:
+                    if direction == 'X':
+                        metric_key = 'metric_neural_fa_total_rmse_x'
+                    elif direction == 'Y':
+                        metric_key = 'metric_neural_fa_total_rmse_y'
+                    elif direction == 'Z':
+                        metric_key = 'metric_neural_fa_total_rmse_z'
+                    else:
+                        metric_key = 'metric_neural_fa_total_rmse_total'
+                    
+                    fa_total_val = selected_row.get(metric_key, None)
+                    if fa_total_val is not None:
+                        fa_total_data.append({
+                            '方向': direction,
+                            'RMSE (N)': f"{fa_total_val:.6f}"
+                        })
+                
+                if fa_total_data:
+                    fa_total_df = pd.DataFrame(fa_total_data)
+                    st.dataframe(fa_total_df, use_container_width=True, hide_index=True)
+                else:
+                    st.info("总力RMSE数据不可用")
+            
             st.markdown("---")
             
             # ========== 时间序列对比部分（放在RMSE下面，参数上面）==========
@@ -1410,6 +1575,58 @@ def main():
                                 st.plotly_chart(fig, use_container_width=True)
                         else:
                             st.warning("无法生成位置对比图")
+                    
+                    # 绘制气动力时间序列对比图
+                    fa_figs, fa_total_figs = plot_aerodynamic_force(log_df, selected_run)
+                    
+                    if fa_figs or fa_total_figs:
+                        st.markdown("---")
+                        st.markdown("#### 🚁 气动力时间序列对比")
+                        
+                        # 图1：neural_f vs real_fa
+                        st.markdown("##### 气动力对比（neural_f vs real_fa）")
+                        tab_fa_x, tab_fa_y, tab_fa_z = st.tabs(["X方向", "Y方向", "Z方向"])
+                        
+                        with tab_fa_x:
+                            if len(fa_figs) > 0:
+                                st.plotly_chart(fa_figs[0], use_container_width=True)
+                            else:
+                                st.warning("无法生成X方向气动力对比图")
+                        
+                        with tab_fa_y:
+                            if len(fa_figs) > 1:
+                                st.plotly_chart(fa_figs[1], use_container_width=True)
+                            else:
+                                st.warning("无法生成Y方向气动力对比图")
+                        
+                        with tab_fa_z:
+                            if len(fa_figs) > 2:
+                                st.plotly_chart(fa_figs[2], use_container_width=True)
+                            else:
+                                st.warning("无法生成Z方向气动力对比图")
+                        
+                        # 图2：neural_f_total vs real_fa_total
+                        st.markdown("##### 总力对比（neural_f_total vs real_fa_total）")
+                        st.markdown("总力 = 气动力 + R@fT + m*g")
+                        tab_fa_total_x, tab_fa_total_y, tab_fa_total_z = st.tabs(["X方向", "Y方向", "Z方向"])
+                        
+                        with tab_fa_total_x:
+                            if len(fa_total_figs) > 0:
+                                st.plotly_chart(fa_total_figs[0], use_container_width=True)
+                            else:
+                                st.warning("无法生成X方向总力对比图")
+                        
+                        with tab_fa_total_y:
+                            if len(fa_total_figs) > 1:
+                                st.plotly_chart(fa_total_figs[1], use_container_width=True)
+                            else:
+                                st.warning("无法生成Y方向总力对比图")
+                        
+                        with tab_fa_total_z:
+                            if len(fa_total_figs) > 2:
+                                st.plotly_chart(fa_total_figs[2], use_container_width=True)
+                            else:
+                                st.warning("无法生成Z方向总力对比图")
                 else:
                     st.warning(f"无法加载日志文件: {log_file_name}")
                     st.info("提示：请确保日志文件在 navigation_logs 目录或对应的大任务文件夹中")
