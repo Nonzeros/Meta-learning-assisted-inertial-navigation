@@ -83,6 +83,23 @@ def load_log_file(log_file_name: str, project_root: str = ".", task_batch_folder
         project_root: 项目根目录
         task_batch_folder: 大任务文件夹名称（可选）
     """
+    # 确保 task_batch_folder 是字符串或 None（处理 pandas NaN 的情况）
+    if task_batch_folder is not None:
+        if pd.isna(task_batch_folder):
+            task_batch_folder = None
+        else:
+            task_batch_folder = str(task_batch_folder)
+    
+    # 确保 log_file_name 是字符串
+    if log_file_name is not None:
+        if pd.isna(log_file_name):
+            log_file_name = None
+        else:
+            log_file_name = str(log_file_name)
+    
+    if not log_file_name:
+        return None
+    
     # 尝试多个可能的路径
     possible_paths = []
     
@@ -936,7 +953,7 @@ def main():
                     # 选择要分析的指标类型
                     metric_type = st.selectbox(
                         "选择指标类型",
-                        options=['速度RMSE', '位置RMSE', '两者都显示'],
+                        options=['速度RMSE', '位置RMSE', '气动力RMSE', '速度+位置', '全部'],
                         key="param_analysis_metric_type"
                     )
                 
@@ -955,12 +972,6 @@ def main():
                         for _, row in param_data.iterrows():
                             csv_file = row.get('CSV文件', 'Unknown')
                             
-                            # 提取RMSE值
-                            ukf_vel_total = row.get('UKF速度RMSE_总', 'N/A')
-                            ukf_pos_total = row.get('UKF位置RMSE_总', 'N/A')
-                            pure_vel_total = row.get('纯惯导速度RMSE_总', 'N/A')
-                            pure_pos_total = row.get('纯惯导位置RMSE_总', 'N/A')
-                            
                             # 转换为数值
                             def safe_float(val):
                                 if val == 'N/A' or pd.isna(val):
@@ -970,18 +981,58 @@ def main():
                                 except:
                                     return None
                             
-                            # 获取速度改善率（使用新的列名）
-                            vel_improvement_str = row.get('速度改善率_总(%)', 'N/A')
-                            vel_improvement = safe_float(vel_improvement_str.replace('%', '')) if vel_improvement_str != 'N/A' else None
+                            # 提取速度RMSE值（xyz方向和总）
+                            ukf_vel_east = row.get('UKF速度RMSE_东', 'N/A')
+                            ukf_vel_north = row.get('UKF速度RMSE_北', 'N/A')
+                            ukf_vel_up = row.get('UKF速度RMSE_天', 'N/A')
+                            ukf_vel_total = row.get('UKF速度RMSE_总', 'N/A')
+                            pure_vel_east = row.get('纯惯导速度RMSE_东', 'N/A')
+                            pure_vel_north = row.get('纯惯导速度RMSE_北', 'N/A')
+                            pure_vel_up = row.get('纯惯导速度RMSE_天', 'N/A')
+                            pure_vel_total = row.get('纯惯导速度RMSE_总', 'N/A')
+                            
+                            # 提取位置RMSE值（xyz方向和总）
+                            ukf_pos_east = row.get('UKF位置RMSE_东', 'N/A')
+                            ukf_pos_north = row.get('UKF位置RMSE_北', 'N/A')
+                            ukf_pos_up = row.get('UKF位置RMSE_天', 'N/A')
+                            ukf_pos_total = row.get('UKF位置RMSE_总', 'N/A')
+                            pure_pos_east = row.get('纯惯导位置RMSE_东', 'N/A')
+                            pure_pos_north = row.get('纯惯导位置RMSE_北', 'N/A')
+                            pure_pos_up = row.get('纯惯导位置RMSE_天', 'N/A')
+                            pure_pos_total = row.get('纯惯导位置RMSE_总', 'N/A')
+                            
+                            # 提取气动力RMSE值（xyz方向和总）
+                            fa_rmse_x = row.get('气动力RMSE_x', 'N/A')
+                            fa_rmse_y = row.get('气动力RMSE_y', 'N/A')
+                            fa_rmse_z = row.get('气动力RMSE_z', 'N/A')
+                            fa_rmse_total = row.get('气动力RMSE_总', 'N/A')
                             
                             analysis_data.append({
                                 '参数值': str(param_val),
                                 'CSV文件': csv_file,
-                                'UKF速度RMSE': safe_float(ukf_vel_total),
-                                'UKF位置RMSE': safe_float(ukf_pos_total),
-                                '纯惯导速度RMSE': safe_float(pure_vel_total),
-                                '纯惯导位置RMSE': safe_float(pure_pos_total),
-                                '速度改善率': vel_improvement,
+                                # 速度RMSE
+                                'UKF速度RMSE_东': safe_float(ukf_vel_east),
+                                'UKF速度RMSE_北': safe_float(ukf_vel_north),
+                                'UKF速度RMSE_天': safe_float(ukf_vel_up),
+                                'UKF速度RMSE_总': safe_float(ukf_vel_total),
+                                '纯惯导速度RMSE_东': safe_float(pure_vel_east),
+                                '纯惯导速度RMSE_北': safe_float(pure_vel_north),
+                                '纯惯导速度RMSE_天': safe_float(pure_vel_up),
+                                '纯惯导速度RMSE_总': safe_float(pure_vel_total),
+                                # 位置RMSE
+                                'UKF位置RMSE_东': safe_float(ukf_pos_east),
+                                'UKF位置RMSE_北': safe_float(ukf_pos_north),
+                                'UKF位置RMSE_天': safe_float(ukf_pos_up),
+                                'UKF位置RMSE_总': safe_float(ukf_pos_total),
+                                '纯惯导位置RMSE_东': safe_float(pure_pos_east),
+                                '纯惯导位置RMSE_北': safe_float(pure_pos_north),
+                                '纯惯导位置RMSE_天': safe_float(pure_pos_up),
+                                '纯惯导位置RMSE_总': safe_float(pure_pos_total),
+                                # 气动力RMSE
+                                '气动力RMSE_x': safe_float(fa_rmse_x),
+                                '气动力RMSE_y': safe_float(fa_rmse_y),
+                                '气动力RMSE_z': safe_float(fa_rmse_z),
+                                '气动力RMSE_总': safe_float(fa_rmse_total),
                             })
                     
                     analysis_df = pd.DataFrame(analysis_data)
@@ -994,74 +1045,101 @@ def main():
                         key="param_analysis_viz_type"
                     )
                     
-                    if metric_type == '速度RMSE' or metric_type == '两者都显示':
-                        st.markdown("#### 速度RMSE对比")
+                    # 辅助函数：绘制单个方向的图表
+                    def plot_metric_direction(metric_name, direction_key, direction_label, ukf_col, pure_col=None, unit=''):
+                        """绘制单个方向的RMSE图表"""
+                        st.markdown(f"##### {metric_name} - {direction_label}方向")
                         
                         if viz_type == '柱状图':
-                            # 柱状图：参数值 vs RMSE，按CSV文件分组
                             fig_data = []
                             for _, row in analysis_df.iterrows():
-                                if row['UKF速度RMSE'] is not None:
+                                if row[ukf_col] is not None:
                                     fig_data.append({
                                         '参数值': row['参数值'],
                                         'CSV文件': row['CSV文件'],
-                                        'UKF速度RMSE': row['UKF速度RMSE'],
-                                        '纯惯导速度RMSE': row['纯惯导速度RMSE']
+                                        'UKF': row[ukf_col],
+                                        '纯惯导': row[pure_col] if pure_col and row[pure_col] is not None else None
                                     })
                             
                             if fig_data:
                                 fig_df = pd.DataFrame(fig_data)
-                                fig = px.bar(
-                                    fig_df,
-                                    x='参数值',
-                                    y=['UKF速度RMSE', '纯惯导速度RMSE'],
-                                    color='CSV文件',
-                                    title=f'{param_display_names.get(selected_param, selected_param)} 对速度RMSE的影响',
-                                    barmode='group',
-                                    labels={'value': 'RMSE', '参数值': param_display_names.get(selected_param, selected_param)}
-                                )
-                                fig.update_layout(height=500)
-                                st.plotly_chart(fig, use_container_width=True)
-                        
-                        elif viz_type == '折线图':
-                            # 折线图：参数值 vs RMSE，每个CSV文件一条线
-                            fig_data = []
-                            for _, row in analysis_df.iterrows():
-                                if row['UKF速度RMSE'] is not None:
-                                    fig_data.append({
-                                        '参数值': row['参数值'],
-                                        'CSV文件': row['CSV文件'],
-                                        'UKF速度RMSE': row['UKF速度RMSE'],
-                                        '纯惯导速度RMSE': row['纯惯导速度RMSE']
-                                    })
-                            
-                            if fig_data:
-                                fig_df = pd.DataFrame(fig_data)
-                                # 按参数值排序
+                                # 尝试按参数值排序
                                 try:
                                     fig_df['参数值_数值'] = fig_df['参数值'].astype(float)
                                     fig_df = fig_df.sort_values('参数值_数值')
                                 except:
                                     pass
                                 
-                                fig = px.line(
-                                    fig_df,
-                                    x='参数值',
-                                    y=['UKF速度RMSE', '纯惯导速度RMSE'],
-                                    color='CSV文件',
-                                    title=f'{param_display_names.get(selected_param, selected_param)} 对速度RMSE的影响',
-                                    markers=True,
-                                    labels={'value': 'RMSE', '参数值': param_display_names.get(selected_param, selected_param)}
-                                )
-                                fig.update_layout(height=500)
+                                if pure_col:
+                                    fig = px.bar(
+                                        fig_df,
+                                        x='参数值',
+                                        y=['UKF', '纯惯导'],
+                                        color='CSV文件',
+                                        title=f'{param_display_names.get(selected_param, selected_param)} 对{metric_name} {direction_label}方向的影响',
+                                        barmode='group',
+                                        labels={'value': f'RMSE ({unit})', '参数值': param_display_names.get(selected_param, selected_param)}
+                                    )
+                                else:
+                                    fig = px.bar(
+                                        fig_df,
+                                        x='参数值',
+                                        y='UKF',
+                                        color='CSV文件',
+                                        title=f'{param_display_names.get(selected_param, selected_param)} 对{metric_name} {direction_label}方向的影响',
+                                        barmode='group',
+                                        labels={'value': f'RMSE ({unit})', '参数值': param_display_names.get(selected_param, selected_param)}
+                                    )
+                                fig.update_layout(height=400)
+                                st.plotly_chart(fig, use_container_width=True)
+                        
+                        elif viz_type == '折线图':
+                            fig_data = []
+                            for _, row in analysis_df.iterrows():
+                                if row[ukf_col] is not None:
+                                    fig_data.append({
+                                        '参数值': row['参数值'],
+                                        'CSV文件': row['CSV文件'],
+                                        'UKF': row[ukf_col],
+                                        '纯惯导': row[pure_col] if pure_col and row[pure_col] is not None else None
+                                    })
+                            
+                            if fig_data:
+                                fig_df = pd.DataFrame(fig_data)
+                                try:
+                                    fig_df['参数值_数值'] = fig_df['参数值'].astype(float)
+                                    fig_df = fig_df.sort_values('参数值_数值')
+                                except:
+                                    pass
+                                
+                                if pure_col:
+                                    fig = px.line(
+                                        fig_df,
+                                        x='参数值',
+                                        y=['UKF', '纯惯导'],
+                                        color='CSV文件',
+                                        title=f'{param_display_names.get(selected_param, selected_param)} 对{metric_name} {direction_label}方向的影响',
+                                        markers=True,
+                                        labels={'value': f'RMSE ({unit})', '参数值': param_display_names.get(selected_param, selected_param)}
+                                    )
+                                else:
+                                    fig = px.line(
+                                        fig_df,
+                                        x='参数值',
+                                        y='UKF',
+                                        color='CSV文件',
+                                        title=f'{param_display_names.get(selected_param, selected_param)} 对{metric_name} {direction_label}方向的影响',
+                                        markers=True,
+                                        labels={'value': f'RMSE ({unit})', '参数值': param_display_names.get(selected_param, selected_param)}
+                                    )
+                                fig.update_layout(height=400)
                                 st.plotly_chart(fig, use_container_width=True)
                         
                         elif viz_type == '热力图':
-                            # 热力图：参数值 x CSV文件，显示RMSE值
                             pivot_data = analysis_df.pivot_table(
                                 index='CSV文件',
                                 columns='参数值',
-                                values='UKF速度RMSE',
+                                values=ukf_col,
                                 aggfunc='mean'
                             )
                             
@@ -1072,8 +1150,8 @@ def main():
                                     y=pivot_data.index,
                                     labels=dict(x=param_display_names.get(selected_param, selected_param), 
                                               y='CSV文件', 
-                                              color='UKF速度RMSE'),
-                                    title=f'{param_display_names.get(selected_param, selected_param)} 对速度RMSE的影响（热力图）',
+                                              color=f'RMSE ({unit})'),
+                                    title=f'{param_display_names.get(selected_param, selected_param)} 对{metric_name} {direction_label}方向的影响（热力图）',
                                     color_continuous_scale='Viridis',
                                     aspect='auto'
                                 )
@@ -1081,42 +1159,46 @@ def main():
                                 st.plotly_chart(fig, use_container_width=True)
                         
                         elif viz_type == '组合视图':
-                            # 组合视图：柱状图 + 折线图
                             col1, col2 = st.columns(2)
                             
                             with col1:
-                                # 柱状图
                                 fig_data = []
                                 for _, row in analysis_df.iterrows():
-                                    if row['UKF速度RMSE'] is not None:
+                                    if row[ukf_col] is not None:
                                         fig_data.append({
                                             '参数值': row['参数值'],
                                             'CSV文件': row['CSV文件'],
-                                            'UKF速度RMSE': row['UKF速度RMSE']
+                                            'UKF': row[ukf_col]
                                         })
                                 
                                 if fig_data:
                                     fig_df = pd.DataFrame(fig_data)
+                                    try:
+                                        fig_df['参数值_数值'] = fig_df['参数值'].astype(float)
+                                        fig_df = fig_df.sort_values('参数值_数值')
+                                    except:
+                                        pass
+                                    
                                     fig = px.bar(
                                         fig_df,
                                         x='参数值',
-                                        y='UKF速度RMSE',
+                                        y='UKF',
                                         color='CSV文件',
-                                        title='UKF速度RMSE（柱状图）',
-                                        barmode='group'
+                                        title=f'UKF {metric_name} {direction_label}方向（柱状图）',
+                                        barmode='group',
+                                        labels={'value': f'RMSE ({unit})'}
                                     )
-                                    fig.update_layout(height=400)
+                                    fig.update_layout(height=350)
                                     st.plotly_chart(fig, use_container_width=True)
                             
                             with col2:
-                                # 折线图
                                 fig_data = []
                                 for _, row in analysis_df.iterrows():
-                                    if row['UKF速度RMSE'] is not None:
+                                    if row[ukf_col] is not None:
                                         fig_data.append({
                                             '参数值': row['参数值'],
                                             'CSV文件': row['CSV文件'],
-                                            'UKF速度RMSE': row['UKF速度RMSE']
+                                            'UKF': row[ukf_col]
                                         })
                                 
                                 if fig_data:
@@ -1130,153 +1212,43 @@ def main():
                                     fig = px.line(
                                         fig_df,
                                         x='参数值',
-                                        y='UKF速度RMSE',
+                                        y='UKF',
                                         color='CSV文件',
-                                        title='UKF速度RMSE（折线图）',
-                                        markers=True
+                                        title=f'UKF {metric_name} {direction_label}方向（折线图）',
+                                        markers=True,
+                                        labels={'value': f'RMSE ({unit})'}
                                     )
-                                    fig.update_layout(height=400)
+                                    fig.update_layout(height=350)
                                     st.plotly_chart(fig, use_container_width=True)
                     
-                    if metric_type == '位置RMSE' or metric_type == '两者都显示':
-                        if metric_type == '两者都显示':
+                    # 根据指标类型显示相应的图表
+                    if metric_type == '速度RMSE' or metric_type == '速度+位置' or metric_type == '全部':
+                        st.markdown("#### 速度RMSE对比")
+                        # 显示xyz方向和总RMSE
+                        plot_metric_direction('速度', '东', '东', 'UKF速度RMSE_东', '纯惯导速度RMSE_东', 'm/s')
+                        plot_metric_direction('速度', '北', '北', 'UKF速度RMSE_北', '纯惯导速度RMSE_北', 'm/s')
+                        plot_metric_direction('速度', '天', '天', 'UKF速度RMSE_天', '纯惯导速度RMSE_天', 'm/s')
+                        plot_metric_direction('速度', '总', '总', 'UKF速度RMSE_总', '纯惯导速度RMSE_总', 'm/s')
+                    
+                    if metric_type == '位置RMSE' or metric_type == '速度+位置' or metric_type == '全部':
+                        if metric_type == '速度+位置' or metric_type == '全部':
                             st.markdown("---")
                         st.markdown("#### 位置RMSE对比")
-                        
-                        # 使用相同的可视化方式，但显示位置RMSE
-                        if viz_type == '柱状图':
-                            fig_data = []
-                            for _, row in analysis_df.iterrows():
-                                if row['UKF位置RMSE'] is not None:
-                                    fig_data.append({
-                                        '参数值': row['参数值'],
-                                        'CSV文件': row['CSV文件'],
-                                        'UKF位置RMSE': row['UKF位置RMSE'],
-                                        '纯惯导位置RMSE': row['纯惯导位置RMSE']
-                                    })
-                            
-                            if fig_data:
-                                fig_df = pd.DataFrame(fig_data)
-                                fig = px.bar(
-                                    fig_df,
-                                    x='参数值',
-                                    y=['UKF位置RMSE', '纯惯导位置RMSE'],
-                                    color='CSV文件',
-                                    title=f'{param_display_names.get(selected_param, selected_param)} 对位置RMSE的影响',
-                                    barmode='group',
-                                    labels={'value': 'RMSE', '参数值': param_display_names.get(selected_param, selected_param)}
-                                )
-                                fig.update_layout(height=500)
-                                st.plotly_chart(fig, use_container_width=True)
-                        
-                        elif viz_type == '折线图':
-                            fig_data = []
-                            for _, row in analysis_df.iterrows():
-                                if row['UKF位置RMSE'] is not None:
-                                    fig_data.append({
-                                        '参数值': row['参数值'],
-                                        'CSV文件': row['CSV文件'],
-                                        'UKF位置RMSE': row['UKF位置RMSE'],
-                                        '纯惯导位置RMSE': row['纯惯导位置RMSE']
-                                    })
-                            
-                            if fig_data:
-                                fig_df = pd.DataFrame(fig_data)
-                                try:
-                                    fig_df['参数值_数值'] = fig_df['参数值'].astype(float)
-                                    fig_df = fig_df.sort_values('参数值_数值')
-                                except:
-                                    pass
-                                
-                                fig = px.line(
-                                    fig_df,
-                                    x='参数值',
-                                    y=['UKF位置RMSE', '纯惯导位置RMSE'],
-                                    color='CSV文件',
-                                    title=f'{param_display_names.get(selected_param, selected_param)} 对位置RMSE的影响',
-                                    markers=True,
-                                    labels={'value': 'RMSE', '参数值': param_display_names.get(selected_param, selected_param)}
-                                )
-                                fig.update_layout(height=500)
-                                st.plotly_chart(fig, use_container_width=True)
-                        
-                        elif viz_type == '热力图':
-                            pivot_data = analysis_df.pivot_table(
-                                index='CSV文件',
-                                columns='参数值',
-                                values='UKF位置RMSE',
-                                aggfunc='mean'
-                            )
-                            
-                            if not pivot_data.empty:
-                                fig = px.imshow(
-                                    pivot_data.values,
-                                    x=pivot_data.columns,
-                                    y=pivot_data.index,
-                                    labels=dict(x=param_display_names.get(selected_param, selected_param), 
-                                              y='CSV文件', 
-                                              color='UKF位置RMSE'),
-                                    title=f'{param_display_names.get(selected_param, selected_param)} 对位置RMSE的影响（热力图）',
-                                    color_continuous_scale='Viridis',
-                                    aspect='auto'
-                                )
-                                fig.update_layout(height=400)
-                                st.plotly_chart(fig, use_container_width=True)
-                        
-                        elif viz_type == '组合视图':
-                            col1, col2 = st.columns(2)
-                            
-                            with col1:
-                                fig_data = []
-                                for _, row in analysis_df.iterrows():
-                                    if row['UKF位置RMSE'] is not None:
-                                        fig_data.append({
-                                            '参数值': row['参数值'],
-                                            'CSV文件': row['CSV文件'],
-                                            'UKF位置RMSE': row['UKF位置RMSE']
-                                        })
-                                
-                                if fig_data:
-                                    fig_df = pd.DataFrame(fig_data)
-                                    fig = px.bar(
-                                        fig_df,
-                                        x='参数值',
-                                        y='UKF位置RMSE',
-                                        color='CSV文件',
-                                        title='UKF位置RMSE（柱状图）',
-                                        barmode='group'
-                                    )
-                                    fig.update_layout(height=400)
-                                    st.plotly_chart(fig, use_container_width=True)
-                            
-                            with col2:
-                                fig_data = []
-                                for _, row in analysis_df.iterrows():
-                                    if row['UKF位置RMSE'] is not None:
-                                        fig_data.append({
-                                            '参数值': row['参数值'],
-                                            'CSV文件': row['CSV文件'],
-                                            'UKF位置RMSE': row['UKF位置RMSE']
-                                        })
-                                
-                                if fig_data:
-                                    fig_df = pd.DataFrame(fig_data)
-                                    try:
-                                        fig_df['参数值_数值'] = fig_df['参数值'].astype(float)
-                                        fig_df = fig_df.sort_values('参数值_数值')
-                                    except:
-                                        pass
-                                    
-                                    fig = px.line(
-                                        fig_df,
-                                        x='参数值',
-                                        y='UKF位置RMSE',
-                                        color='CSV文件',
-                                        title='UKF位置RMSE（折线图）',
-                                        markers=True
-                                    )
-                                    fig.update_layout(height=400)
-                                    st.plotly_chart(fig, use_container_width=True)
+                        # 显示xyz方向和总RMSE
+                        plot_metric_direction('位置', '东', '东', 'UKF位置RMSE_东', '纯惯导位置RMSE_东', 'm')
+                        plot_metric_direction('位置', '北', '北', 'UKF位置RMSE_北', '纯惯导位置RMSE_北', 'm')
+                        plot_metric_direction('位置', '天', '天', 'UKF位置RMSE_天', '纯惯导位置RMSE_天', 'm')
+                        plot_metric_direction('位置', '总', '总', 'UKF位置RMSE_总', '纯惯导位置RMSE_总', 'm')
+                    
+                    if metric_type == '气动力RMSE' or metric_type == '全部':
+                        if metric_type == '全部':
+                            st.markdown("---")
+                        st.markdown("#### 气动力RMSE对比")
+                        # 显示xyz方向和总RMSE（气动力没有纯惯导对比）
+                        plot_metric_direction('气动力', 'x', 'X', '气动力RMSE_x', None, 'N')
+                        plot_metric_direction('气动力', 'y', 'Y', '气动力RMSE_y', None, 'N')
+                        plot_metric_direction('气动力', 'z', 'Z', '气动力RMSE_z', None, 'N')
+                        plot_metric_direction('气动力', '总', '总', '气动力RMSE_总', None, 'N')
                 else:
                     st.warning(f"参数 {param_display_names.get(selected_param, selected_param)} 没有有效的数据值")
             else:
@@ -1539,6 +1511,17 @@ def main():
             # 获取日志文件名和大任务文件夹
             log_file_name = selected_row.get('log_file', None)
             task_batch_folder = selected_row.get('param_task_batch_folder', None)
+            
+            # 确保类型正确（处理 pandas NaN）
+            if log_file_name is not None and pd.notna(log_file_name):
+                log_file_name = str(log_file_name)
+            else:
+                log_file_name = None
+            
+            if task_batch_folder is not None and pd.notna(task_batch_folder):
+                task_batch_folder = str(task_batch_folder)
+            else:
+                task_batch_folder = None
             
             if log_file_name:
                 # 加载日志文件（传入大任务文件夹信息）
