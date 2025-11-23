@@ -159,16 +159,29 @@ def generate_param_combinations(scan_config: Dict[str, Any], base_config: Dict[s
             # 深度复制嵌套字典
             new_config = copy.deepcopy(base_config)
             
+            # 更新filter参数（如lambda1, numPar等）
+            if 'filter' in param_combo and param_combo['filter'] is not None:
+                if new_config.get('filter') is not None:
+                    new_config['filter'].update(param_combo['filter'])
+                else:
+                    new_config['filter'] = param_combo['filter']
+            
             # 更新粒子滤波参数
-            if 'particle_filter' in param_combo:
-                new_config['particle_filter'].update(param_combo['particle_filter'])
+            if 'particle_filter' in param_combo and param_combo['particle_filter'] is not None:
+                if new_config.get('particle_filter') is not None:
+                    new_config['particle_filter'].update(param_combo['particle_filter'])
+                else:
+                    new_config['particle_filter'] = param_combo['particle_filter']
             
             # 更新卡尔曼滤波参数
-            if 'kalman_filter' in param_combo:
-                new_config['kalman_filter'].update(param_combo['kalman_filter'])
+            if 'kalman_filter' in param_combo and param_combo['kalman_filter'] is not None:
+                if new_config.get('kalman_filter') is not None:
+                    new_config['kalman_filter'].update(param_combo['kalman_filter'])
+                else:
+                    new_config['kalman_filter'] = param_combo['kalman_filter']
             
             # 更新MATLAB UKF参数
-            if 'matlab_ukf' in param_combo:
+            if 'matlab_ukf' in param_combo and param_combo['matlab_ukf'] is not None:
                 for key, value in param_combo['matlab_ukf'].items():
                     if key in ['pos_err', 'phi', 'dpos']:
                         new_config['matlab_ukf'][key] = value

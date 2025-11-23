@@ -12,6 +12,25 @@ from datetime import datetime
 import os
 import glob
 import ast
+import json
+import shutil
+
+
+def rerun_app():
+    """
+    重新运行应用（兼容不同版本的Streamlit）
+    """
+    try:
+        if hasattr(st, 'rerun'):
+            st.rerun()
+        elif hasattr(st, 'experimental_rerun'):
+            st.experimental_rerun()
+        else:
+            # 如果都不存在，尝试使用其他方法
+            st.cache_data.clear()
+    except (AttributeError, Exception):
+        # 如果所有方法都失败，至少清除缓存
+        st.cache_data.clear()
 
 
 def load_mlflow_experiments(tracking_uri: str = "./mlruns"):
@@ -163,6 +182,166 @@ def load_log_file(log_file_name: str, project_root: str = ".", task_batch_folder
                 st.error(f"读取日志文件失败 {matches[0]}: {str(e)}")
     
     return None
+
+
+def get_task_batch_notes_file(project_root: str = ".") -> str:
+    """
+    获取任务批次备注文件路径
+    
+    参数:
+        project_root: 项目根目录
+    
+    返回:
+        备注文件路径
+    """
+    return os.path.join(project_root, "navigation_logs", "task_batch_notes.json")
+
+
+def load_task_batch_notes(project_root: str = ".") -> dict:
+    """
+    加载任务批次备注
+    
+    参数:
+        project_root: 项目根目录
+    
+    返回:
+        备注字典 {task_batch_folder: note}
+    """
+    notes_file = get_task_batch_notes_file(project_root)
+    if os.path.exists(notes_file):
+        try:
+            with open(notes_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            st.error(f"读取备注文件失败: {str(e)}")
+            return {}
+    return {}
+
+
+def save_task_batch_note(task_batch_folder: str, note: str, project_root: str = ".") -> bool:
+    """
+    保存任务批次备注
+    
+    参数:
+        task_batch_folder: 任务批次文件夹名称
+        note: 备注内容
+        project_root: 项目根目录
+    
+    返回:
+        是否保存成功
+    """
+    try:
+        notes_file = get_task_batch_notes_file(project_root)
+        notes = load_task_batch_notes(project_root)
+        
+        if note.strip():
+            notes[task_batch_folder] = note.strip()
+        else:
+            # 如果备注为空，删除该条目
+            notes.pop(task_batch_folder, None)
+        
+        # 确保目录存在
+        os.makedirs(os.path.dirname(notes_file), exist_ok=True)
+        
+        # 保存到文件
+        with open(notes_file, 'w', encoding='utf-8') as f:
+            json.dump(notes, f, ensure_ascii=False, indent=2)
+        
+        return True
+    except Exception as e:
+        st.error(f"保存备注失败: {str(e)}")
+        return False
+
+
+def delete_task_batch_folder(task_batch_folder: str, project_root: str = ".", tracking_uri: str = "./mlruns") -> bool:
+    """
+    删除任务批次文件夹及其相关的MLflow运行记录
+    
+    参数:
+        task_batch_folder: 任务批次文件夹名称
+        project_root: 项目根目录
+        tracking_uri: MLflow跟踪URI
+    
+    返回:
+        是否删除成功
+    """
+    try:
+        # 1. 删除navigation_logs下的文件夹
+        folder_path = os.path.join(project_root, "navigation_logs", task_batch_folder)
+        folder_deleted = False
+        if os.path.exists(folder_path) and os.path.isdir(folder_path):
+            shutil.rmtree(folder_path)
+            folder_deleted = True
+        
+        # 2. 删除相关的MLflow运行记录
+        mlflow_runs_deleted = 0
+        try:
+            # 转换URI格式
+            if os.path.isabs(tracking_uri):
+                if os.name == 'nt':  # Windows
+                    normalized_path = tracking_uri.replace('\\', '/')
+                    if ':' in normalized_path:
+                        parts = normalized_path.split(':', 1)
+                        normalized_path = f"/{parts[0]}:{parts[1]}"
+                    tracking_uri_normalized = f"file://{normalized_path}"
+                else:
+                    tracking_uri_normalized = f"file://{tracking_uri}"
+            else:
+                # 相对路径，转换为绝对路径
+                abs_tracking_uri = os.path.abspath(tracking_uri)
+                if os.name == 'nt':  # Windows
+                    normalized_path = abs_tracking_uri.replace('\\', '/')
+                    if ':' in normalized_path:
+                        parts = normalized_path.split(':', 1)
+                        normalized_path = f"/{parts[0]}:{parts[1]}"
+                    tracking_uri_normalized = f"file://{normalized_path}"
+                else:
+                    tracking_uri_normalized = f"file://{abs_tracking_uri}"
+            
+            client = mlflow.tracking.MlflowClient(tracking_uri=tracking_uri_normalized)
+            
+            # 搜索所有包含该task_batch_folder的运行
+            experiment_list = client.search_experiments()
+            for exp in experiment_list:
+                # 搜索该实验下所有包含task_batch_folder参数的运行
+                runs = client.search_runs(
+                    experiment_ids=[exp.experiment_id],
+                    filter_string=f"params.task_batch_folder = '{task_batch_folder}'"
+                )
+                
+                for run in runs:
+                    try:
+                        # 删除运行（包括artifacts）
+                        client.delete_run(run.info.run_id)
+                        mlflow_runs_deleted += 1
+                    except Exception as e:
+                        # 如果删除失败，记录错误但继续
+                        print(f"删除MLflow运行 {run.info.run_id} 失败: {str(e)}")
+        
+        except Exception as e:
+            # MLflow删除失败不影响整体流程，但记录错误
+            print(f"删除MLflow运行记录时出错: {str(e)}")
+        
+        # 3. 同时删除备注
+        notes = load_task_batch_notes(project_root)
+        notes.pop(task_batch_folder, None)
+        notes_file = get_task_batch_notes_file(project_root)
+        if os.path.exists(notes_file):
+            with open(notes_file, 'w', encoding='utf-8') as f:
+                json.dump(notes, f, ensure_ascii=False, indent=2)
+        
+        # 返回结果和详细信息
+        if folder_deleted or mlflow_runs_deleted > 0:
+            if mlflow_runs_deleted > 0:
+                st.info(f"已删除 {mlflow_runs_deleted} 个MLflow运行记录")
+            return True
+        else:
+            st.error(f"文件夹不存在: {folder_path}")
+            return False
+            
+    except Exception as e:
+        st.error(f"删除文件夹失败: {str(e)}")
+        return False
 
 
 def extract_param_value(row, param_name):
@@ -673,13 +852,219 @@ def main():
     if 'param_task_batch_folder' in df.columns:
         task_batch_folders = df['param_task_batch_folder'].dropna().unique()
         if len(task_batch_folders) > 0:
-            selected_task_batches = st.sidebar.multiselect(
+            # 加载备注，用于显示
+            notes = load_task_batch_notes(project_root)
+            
+            # 创建带备注的选项列表
+            folder_options = []
+            for folder in sorted(task_batch_folders, reverse=True):
+                note = notes.get(folder, "")
+                if note:
+                    folder_options.append(f"{folder} 📝 {note}")
+                else:
+                    folder_options.append(folder)
+            
+            selected_task_batches_with_notes = st.sidebar.multiselect(
                 "选择大任务文件夹",
-                options=sorted(task_batch_folders, reverse=True),  # 按时间倒序排列
-                default=list(task_batch_folders)  # 默认选择所有
+                options=folder_options,
+                default=[],  # 默认不选择任何文件夹，让用户自己选择
+                help="带📝标记的文件夹有备注信息。请至少选择一个文件夹以查看数据。"
             )
-            df = df[df['param_task_batch_folder'].isin(selected_task_batches)]
-            st.sidebar.info(f"已选择 {len(selected_task_batches)} 个大任务文件夹")
+            
+            # 提取实际的文件夹名称（去掉备注部分）
+            selected_task_batches = []
+            for item in selected_task_batches_with_notes:
+                # 如果包含"📝"，提取前面的文件夹名
+                if "📝" in item:
+                    folder_name = item.split("📝")[0].strip()
+                else:
+                    folder_name = item
+                selected_task_batches.append(folder_name)
+            
+            if len(selected_task_batches) > 0:
+                df = df[df['param_task_batch_folder'].isin(selected_task_batches)]
+                st.sidebar.info(f"已选择 {len(selected_task_batches)} 个大任务文件夹")
+            else:
+                # 如果没有选择任何文件夹，显示提示并清空数据
+                st.sidebar.warning("⚠️ 请至少选择一个文件夹以查看数据")
+                df = pd.DataFrame()  # 清空数据框
+    
+    # 大任务文件夹管理
+    st.sidebar.header("📁 大任务文件夹管理")
+    
+    # 获取所有大任务文件夹（从文件系统）
+    navigation_logs_dir = os.path.join(project_root, "navigation_logs")
+    if os.path.exists(navigation_logs_dir):
+        task_batch_dirs = [d for d in os.listdir(navigation_logs_dir) 
+                          if os.path.isdir(os.path.join(navigation_logs_dir, d)) 
+                          and d.startswith("task_batch_")]
+        task_batch_dirs = sorted(task_batch_dirs, reverse=True)
+        
+        if len(task_batch_dirs) > 0:
+            # 加载备注
+            notes = load_task_batch_notes(project_root)
+            
+            # 创建标签页：单个管理和批量删除
+            tab_single, tab_batch = st.sidebar.tabs(["📝 单个管理", "🗑️ 批量删除"])
+            
+            with tab_single:
+                # 选择要管理的文件夹
+                selected_manage_folder = st.selectbox(
+                    "选择要管理的文件夹",
+                    options=task_batch_dirs,
+                    index=0 if task_batch_dirs else None,
+                    key="manage_task_batch_folder"
+                )
+                
+                if selected_manage_folder:
+                    # 重新加载备注（确保显示最新）
+                    notes = load_task_batch_notes(project_root)
+                    current_note = notes.get(selected_manage_folder, "")
+                    
+                    st.markdown("**当前备注:**")
+                    if current_note:
+                        st.info(current_note)
+                    else:
+                        st.info("（无备注）")
+                    
+                    # 备注输入框 - 使用动态key确保每次文件夹切换时都重新加载
+                    note_input_key = f"note_input_{selected_manage_folder}"
+                    new_note = st.text_area(
+                        "编辑备注",
+                        value=current_note,  # 直接使用当前备注值
+                        height=100,
+                        key=note_input_key,
+                        help="输入备注信息，用于标识这个任务批次的内容"
+                    )
+                    
+                    # 保存备注按钮
+                    if st.button("💾 保存备注", key=f"save_note_{selected_manage_folder}"):
+                        if save_task_batch_note(selected_manage_folder, new_note, project_root):
+                            st.success("备注已保存！")
+                            st.cache_data.clear()  # 清除缓存，刷新显示
+                            # 清除该输入框的session_state，强制重新加载
+                            if note_input_key in st.session_state:
+                                del st.session_state[note_input_key]
+                            rerun_app()
+                    
+                    # 删除文件夹功能
+                    delete_key = f"delete_confirm_{selected_manage_folder}"
+                    if delete_key not in st.session_state:
+                        st.session_state[delete_key] = False
+                    
+                    if not st.session_state[delete_key]:
+                        if st.button("🗑️ 删除文件夹", key=f"delete_{selected_manage_folder}", type="secondary"):
+                            st.session_state[delete_key] = True
+                            rerun_app()
+                    else:
+                        st.warning(f"⚠️ 确定要删除文件夹 '{selected_manage_folder}' 吗？")
+                        st.markdown("**此操作不可恢复！**")
+                        col_confirm, col_cancel = st.columns(2)
+                        with col_confirm:
+                            if st.button("✅ 确认删除", key=f"confirm_delete_{selected_manage_folder}", type="primary"):
+                                if delete_task_batch_folder(selected_manage_folder, project_root, tracking_uri):
+                                    st.session_state[delete_key] = False
+                                    st.success("文件夹及MLflow记录已删除！")
+                                    st.cache_data.clear()  # 清除缓存，刷新显示
+                                    rerun_app()
+                        with col_cancel:
+                            if st.button("❌ 取消", key=f"cancel_delete_{selected_manage_folder}"):
+                                st.session_state[delete_key] = False
+                                rerun_app()
+                    
+                    # 显示文件夹信息
+                    folder_path = os.path.join(navigation_logs_dir, selected_manage_folder)
+                    if os.path.exists(folder_path):
+                        file_count = len([f for f in os.listdir(folder_path) 
+                                         if os.path.isfile(os.path.join(folder_path, f))])
+                        folder_size = sum(os.path.getsize(os.path.join(folder_path, f))
+                                         for f in os.listdir(folder_path)
+                                         if os.path.isfile(os.path.join(folder_path, f)))
+                        folder_size_mb = folder_size / (1024 * 1024)
+                        
+                        st.markdown("**文件夹信息:**")
+                        st.text(f"文件数量: {file_count}")
+                        st.text(f"文件夹大小: {folder_size_mb:.2f} MB")
+            
+            with tab_batch:
+                st.markdown("**批量删除文件夹**")
+                st.markdown("选择要删除的文件夹，然后点击批量删除按钮。")
+                
+                # 创建带备注的选项列表
+                batch_folder_options = []
+                for folder in task_batch_dirs:
+                    note = notes.get(folder, "")
+                    if note:
+                        batch_folder_options.append(f"{folder} 📝 {note}")
+                    else:
+                        batch_folder_options.append(folder)
+                
+                selected_batch_folders_with_notes = st.multiselect(
+                    "选择要删除的文件夹",
+                    options=batch_folder_options,
+                    default=[],
+                    help="⚠️ 删除操作不可恢复，请谨慎选择"
+                )
+                
+                # 提取实际的文件夹名称
+                selected_batch_folders = []
+                for item in selected_batch_folders_with_notes:
+                    if "📝" in item:
+                        folder_name = item.split("📝")[0].strip()
+                    else:
+                        folder_name = item
+                    selected_batch_folders.append(folder_name)
+                
+                if len(selected_batch_folders) > 0:
+                    st.warning(f"⚠️ 将删除 {len(selected_batch_folders)} 个文件夹，此操作不可恢复！")
+                    
+                    # 显示将要删除的文件夹列表
+                    with st.expander("查看将要删除的文件夹列表", expanded=False):
+                        for folder in selected_batch_folders:
+                            note = notes.get(folder, "")
+                            if note:
+                                st.text(f"• {folder} 📝 {note}")
+                            else:
+                                st.text(f"• {folder}")
+                    
+                    # 批量删除确认
+                    batch_delete_key = "batch_delete_confirm"
+                    if batch_delete_key not in st.session_state:
+                        st.session_state[batch_delete_key] = False
+                    
+                    if not st.session_state[batch_delete_key]:
+                        if st.button("🗑️ 批量删除", key="batch_delete_btn", type="primary"):
+                            st.session_state[batch_delete_key] = True
+                            rerun_app()
+                    else:
+                        st.error("⚠️ 最后确认：确定要删除这些文件夹吗？")
+                        col_confirm_batch, col_cancel_batch = st.columns(2)
+                        with col_confirm_batch:
+                            if st.button("✅ 确认批量删除", key="confirm_batch_delete", type="primary"):
+                                success_count = 0
+                                failed_folders = []
+                                for folder in selected_batch_folders:
+                                    if delete_task_batch_folder(folder, project_root, tracking_uri):
+                                        success_count += 1
+                                    else:
+                                        failed_folders.append(folder)
+                                
+                                if success_count > 0:
+                                    st.success(f"成功删除 {success_count} 个文件夹及对应的MLflow记录！")
+                                if failed_folders:
+                                    st.error(f"删除失败: {', '.join(failed_folders)}")
+                                
+                                st.session_state[batch_delete_key] = False
+                                st.cache_data.clear()
+                                rerun_app()
+                        with col_cancel_batch:
+                            if st.button("❌ 取消", key="cancel_batch_delete"):
+                                st.session_state[batch_delete_key] = False
+                                rerun_app()
+                else:
+                    st.info("请选择要删除的文件夹")
+        else:
+            st.sidebar.info("没有找到大任务文件夹")
     
     # 实验名称筛选
     if 'experiment_name' in df.columns:
@@ -770,14 +1155,7 @@ def main():
                 if st.button("🔍 查看实验详情", key="jump_to_details_btn", use_container_width=True):
                     if st.session_state.get('selected_run_name'):
                         st.session_state['jump_to_tab'] = 'tab3'
-                        # 兼容不同版本的 Streamlit
-                        try:
-                            st.rerun()
-                        except AttributeError:
-                            try:
-                                st.experimental_rerun()
-                            except AttributeError:
-                                pass
+                        rerun_app()
             
             st.markdown("---")
             
@@ -881,14 +1259,7 @@ def main():
                             st.session_state['selected_run_name'] = run_names[selected_idx]
                             st.session_state['selected_run_index'] = selected_idx
                             st.session_state['jump_to_tab'] = 'tab3'
-                            # 兼容不同版本的 Streamlit
-                            try:
-                                st.rerun()
-                            except AttributeError:
-                                try:
-                                    st.experimental_rerun()
-                                except AttributeError:
-                                    pass
+                            rerun_app()
                 else:
                     # 没有选中或选中多个，按钮禁用或显示提示
                     if num_selected == 0:
