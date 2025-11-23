@@ -272,7 +272,7 @@ for param_idx, current_filter_config in enumerate(param_combinations, 1):
                     metrics = results.get('metrics', {})
                     print(f"    - UKF速度RMSE (总体): {metrics.get('ukf_vel_rmse_total', 'N/A'):.6f}")
                     print(f"    - UKF位置RMSE (总体): {metrics.get('ukf_pos_rmse_total', 'N/A'):.6f}")
-            else:
+    else:
                 print(f"  ✗ 任务 {task_num} 处理失败: {error_msg}")
                 run_log.write(f"  状态: 失败\n")
                 run_log.write(f"  错误信息: {error_msg}\n")

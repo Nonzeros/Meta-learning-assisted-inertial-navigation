@@ -126,6 +126,14 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
         matlab_pure_avps = eng.pure_ins_solve(matlab_imu, matlab.double(last_avp.tolist()), nargout=1)
         pure_avps = np.array(matlab_pure_avps).T
         
+        # 提取纯惯导的时间序列（第10行，索引9是时间）
+        pure_avps_time = pure_avps[9, :] if pure_avps.shape[0] > 9 else None
+        # 计算实际时间间隔（取前两个时间点的差值，或平均值）
+        if pure_avps_time is not None and len(pure_avps_time) > 1:
+            pure_ins_time_step = pure_avps_time[1] - pure_avps_time[0]
+        else:
+            pure_ins_time_step = 0.04  # 默认值（双子样）
+        
         # 提前转换纯惯导数据到XYZ坐标系（用于日志记录）
         pure_avp_size = pure_avps.shape
         pure_avps_xyz_log = np.empty((9, pure_avp_size[1]))
@@ -445,39 +453,22 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
             current_desire_v = desire_vs[loop_index-1, 0:3] if loop_index-1 < len(desire_vs) else [0, 0, 0]
             current_desire_p = desire_ps[loop_index-1, 0:3] if loop_index-1 < len(desire_ps) else [0, 0, 0]
             
-            # 纯惯导数据（根据时间索引匹配）
-            # 纯惯导从adapt_end_index开始，所以索引需要调整
-            # 注意：纯惯导可能使用双子样算法，输出频率可能是输入频率的一半
-            # 因此需要根据实际数据长度进行索引匹配
-            pure_ins_index = loop_index - first_index
+            # 纯惯导数据（根据索引关系匹配）
+            # INS时间间隔是0.04s，UKF时间间隔是0.02s，所以每2个UKF循环对应1个INS数据点
+            # INS索引 = (loop_index - first_index) // 2
+            pure_ins_index = (loop_index - first_index) // 2
             pure_avps_length = pure_avps_xyz_log.shape[1]
             
-            # 如果纯惯导数据长度小于循环长度，可能需要插值或使用最近的索引
-            if pure_avps_length < validation_data_length:
-                # 使用比例索引：将循环索引映射到纯惯导数据索引
-                # 假设纯惯导输出频率是循环频率的一半
-                scaled_index = int(pure_ins_index * pure_avps_length / validation_data_length)
-                scaled_index = min(scaled_index, pure_avps_length - 1)
-                if scaled_index >= 0 and scaled_index < pure_avps_length:
-                    pure_ins_att_xyz = pure_avps_xyz_log[0:3, scaled_index] * 180.0 / np.pi  # 转换为度
-                    pure_ins_vel_xyz = pure_avps_xyz_log[3:6, scaled_index]
-                    pure_ins_pos_xyz = pure_avps_xyz_log[6:9, scaled_index]
-                else:
-                    pure_ins_att_xyz = [0, 0, 0]
-                    pure_ins_vel_xyz = [0, 0, 0]
-                    pure_ins_pos_xyz = [0, 0, 0]
+            if pure_ins_index < pure_avps_length:
+                pure_ins_att_xyz = pure_avps_xyz_log[0:3, pure_ins_index] * 180.0 / np.pi  # 转换为度
+                pure_ins_vel_xyz = pure_avps_xyz_log[3:6, pure_ins_index]
+                pure_ins_pos_xyz = pure_avps_xyz_log[6:9, pure_ins_index]
             else:
-                # 如果纯惯导数据长度大于等于循环长度，直接使用索引
-                if pure_ins_index < pure_avps_length:
-                    pure_ins_att_xyz = pure_avps_xyz_log[0:3, pure_ins_index] * 180.0 / np.pi  # 转换为度
-                    pure_ins_vel_xyz = pure_avps_xyz_log[3:6, pure_ins_index]
-                    pure_ins_pos_xyz = pure_avps_xyz_log[6:9, pure_ins_index]
-                else:
-                    # 如果索引超出范围，使用最后一个数据点
-                    last_index = pure_avps_length - 1
-                    pure_ins_att_xyz = pure_avps_xyz_log[0:3, last_index] * 180.0 / np.pi  # 转换为度
-                    pure_ins_vel_xyz = pure_avps_xyz_log[3:6, last_index]
-                    pure_ins_pos_xyz = pure_avps_xyz_log[6:9, last_index]
+                # 如果索引超出范围，使用最后一个数据点
+                last_index = pure_avps_length - 1
+                pure_ins_att_xyz = pure_avps_xyz_log[0:3, last_index] * 180.0 / np.pi  # 转换为度
+                pure_ins_vel_xyz = pure_avps_xyz_log[3:6, last_index]
+                pure_ins_pos_xyz = pure_avps_xyz_log[6:9, last_index]
             
             current_pwm = inputdata[7:11].tolist() if inputdata.shape[0] >= 11 else [0, 0, 0, 0]
             
@@ -559,17 +550,24 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
         ukf_vel_xyz = ukf_avps_xyz[3:6, 0:-exclude_last if exclude_last > 0 else None]
         ukf_pos_xyz = ukf_avps_xyz[6:9, 0:-exclude_last if exclude_last > 0 else None]
         
-        pure_ins_time_step = 0.04
-        pure_ins_start_time = 2.0
-        pure_ins_end_time = 40.0
-        pure_ins_time_range = pure_ins_end_time - pure_ins_start_time
-        pure_ins_target_points = int(pure_ins_time_range / pure_ins_time_step)
-        actual_pure_avps_length = pure_avps_xyz.shape[1]
-        pure_ins_data_length = min(pure_ins_target_points, actual_pure_avps_length)
-        x2_data = np.arange(pure_ins_start_time, pure_ins_start_time + pure_ins_data_length * pure_ins_time_step, pure_ins_time_step)
-        pure_ins_time = x2_data[:pure_ins_data_length]
-        pure_ins_vel_xyz = pure_avps_xyz[3:6, 0:pure_ins_data_length]
-        pure_ins_pos_xyz = pure_avps_xyz[6:9, 0:pure_ins_data_length]
+        # 使用pure_avps的实际时间序列（第10行，索引9是时间）
+        # pure_avps_time已经在前面提取过了
+        if pure_avps_time is not None and len(pure_avps_time) > 0:
+            pure_ins_time = pure_avps_time
+            actual_pure_avps_length = len(pure_avps_time)
+        else:
+            # 如果没有时间信息，使用默认计算（向后兼容）
+            pure_ins_time_step = 0.04  # 默认双子样时间间隔
+            pure_ins_start_time = (adapt_end_index + 1) * 0.02
+            actual_pure_avps_length = pure_avps_xyz.shape[1]
+            pure_ins_time_range = (actual_pure_avps_length - 1) * pure_ins_time_step
+            pure_ins_end_time = pure_ins_start_time + pure_ins_time_range
+            pure_ins_time = np.arange(pure_ins_start_time, pure_ins_end_time + pure_ins_time_step, pure_ins_time_step)
+            pure_ins_time = pure_ins_time[:actual_pure_avps_length]
+        
+        # 使用所有pure_avps_xyz数据计算速度和位置的RMSE
+        pure_ins_vel_xyz = pure_avps_xyz[3:6, :]
+        pure_ins_pos_xyz = pure_avps_xyz[6:9, :]
         
         real_vel_xyz = y_real_data_total[3:6, 0:validation_length]
         real_pos_xyz = y_real_data_total[6:9, 0:validation_length]
