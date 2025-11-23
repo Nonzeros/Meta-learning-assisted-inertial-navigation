@@ -602,7 +602,7 @@ def plot_aerodynamic_force(log_df, run_name: str):
                 fig.add_trace(go.Scatter(
                     x=log_df_plot.loc[valid_mask, time_col],
                     y=log_df_plot.loc[valid_mask, real_total_col],
-                    name='真实总力（real_fa + R@fT + m*g）',
+                    name='参考总气动力',
                     mode='lines',
                     line=dict(color='#06A77D', width=2, dash='dot')
                 ))
@@ -615,7 +615,7 @@ def plot_aerodynamic_force(log_df, run_name: str):
                 fig.add_trace(go.Scatter(
                     x=log_df_plot.loc[valid_mask, time_col],
                     y=log_df_plot.loc[valid_mask, neural_total_col],
-                    name='神经网络预测总力（neural_f + R@fT + m*g）',
+                    name='神经网络预测总气动力',
                     mode='lines',
                     line=dict(color='#2E86AB', width=2)
                 ))
