@@ -15,6 +15,175 @@ import ast
 import json
 import shutil
 
+# CSV文件名到风速描述的映射
+CSV_TO_WIND_SPEED = {
+    'custom_figure8_baseline_nowind.csv': '风速 0 m/s',
+    'custom_figure8_baseline_100wind.csv': '风速 12.1 m/s',
+    'custom_figure8_baseline_70p20sint.csv': '风速 8.5+sin(t) m/s',
+    'custom_figure8_baseline_70wind.csv': '风速 8.5 m/s',
+    'custom_figure8_baseline_35wind.csv': '风速 4.2 m/s',
+    # 支持不带.csv后缀的情况
+    'custom_figure8_baseline_nowind': '风速 0 m/s',
+    'custom_figure8_baseline_100wind': '风速 12.1 m/s',
+    'custom_figure8_baseline_70p20sint': '风速 8.5+sin(t) m/s',
+    'custom_figure8_baseline_70wind': '风速 8.5 m/s',
+    'custom_figure8_baseline_35wind': '风速 4.2 m/s',
+}
+
+def get_wind_speed_label(csv_filename):
+    """
+    将CSV文件名转换为风速描述标签
+    
+    参数:
+        csv_filename: CSV文件名或已经是标签的字符串（可能是各种类型）
+    
+    返回:
+        风速描述标签，如果找不到映射则返回原文件名
+    """
+    # 处理各种类型的输入（None, NaN, float, int等）
+    if csv_filename is None:
+        return 'Unknown'
+    
+    # 处理 pandas NaN
+    if pd.isna(csv_filename):
+        return 'Unknown'
+    
+    # 转换为字符串
+    try:
+        csv_filename = str(csv_filename)
+    except:
+        return 'Unknown'
+    
+    if not csv_filename or csv_filename == 'Unknown' or csv_filename == 'nan':
+        return 'Unknown'
+    
+    # 如果已经是风速标签格式，直接返回
+    if csv_filename.startswith('风速 ') and 'm/s' in csv_filename:
+        return csv_filename
+    
+    # 尝试直接匹配
+    if csv_filename in CSV_TO_WIND_SPEED:
+        return CSV_TO_WIND_SPEED[csv_filename]
+    
+    # 尝试匹配文件名（去除路径）
+    filename = os.path.basename(csv_filename) if os.path.sep in csv_filename else csv_filename
+    
+    # 尝试完整匹配
+    if filename in CSV_TO_WIND_SPEED:
+        return CSV_TO_WIND_SPEED[filename]
+    
+    # 尝试部分匹配（包含关键部分）
+    for key, value in CSV_TO_WIND_SPEED.items():
+        key_base = key.replace('.csv', '')
+        filename_base = filename.replace('.csv', '')
+        if key_base in filename_base or filename_base in key_base:
+            return value
+    
+    # 如果都匹配不上，返回原文件名
+    return csv_filename
+
+# 科研绘图标准样式配置
+SCIENTIFIC_PLOT_STYLE = {
+    'font_family': 'Times New Roman, SimSun',  # 英文使用 Times New Roman，中文使用宋体（SimSun），使用逗号分隔实现字体回退
+    'font_size': 14,
+    'title_font_size': 16,
+    'axis_title_font_size': 16,  # 从14改为16，与刻度字体大小一致
+    'tick_font_size': 16,  # 从12增加到16（加大4号）
+    'legend_font_size': 12,
+    'color_scale': 'Set2',  # 专业配色方案
+    'grid_color': 'rgba(0, 0, 0, 0.2)',  # 改为黑色（原来是灰色）
+    'grid_width': 1,
+    'line_width': 2,
+    'marker_size': 8,
+    'background_color': 'white',
+    'plot_bgcolor': 'white',
+    'paper_bgcolor': 'white',
+}
+
+def apply_scientific_style(fig, title=None, xlabel=None, ylabel=None, legend_title=None):
+    """
+    应用科研绘图标准样式
+    
+    参数:
+        fig: plotly图形对象
+        title: 图表标题
+        xlabel: X轴标签
+        ylabel: Y轴标签
+        legend_title: 图例标题
+    """
+    # 更新字体和大小
+    fig.update_layout(
+        font=dict(
+            family=SCIENTIFIC_PLOT_STYLE['font_family'],
+            size=SCIENTIFIC_PLOT_STYLE['font_size'],
+            color='black'
+        ),
+        title=dict(
+            text=title if title else fig.layout.title.text,
+            font=dict(size=SCIENTIFIC_PLOT_STYLE['title_font_size'], family=SCIENTIFIC_PLOT_STYLE['font_family']),
+            x=0.5,  # 居中
+            xanchor='center'
+        ),
+        xaxis=dict(
+            title=dict(
+                text=xlabel if xlabel else fig.layout.xaxis.title.text,
+                font=dict(size=SCIENTIFIC_PLOT_STYLE['axis_title_font_size'], family=SCIENTIFIC_PLOT_STYLE['font_family'], color='black')
+            ),
+            tickfont=dict(size=SCIENTIFIC_PLOT_STYLE['tick_font_size'], family=SCIENTIFIC_PLOT_STYLE['font_family'], color='black'),
+            showgrid=True,
+            gridcolor=SCIENTIFIC_PLOT_STYLE['grid_color'],
+            gridwidth=SCIENTIFIC_PLOT_STYLE['grid_width'],
+            linecolor='black',
+            linewidth=1.5,
+            mirror=True,  # 显示上边框
+            showline=True,
+            tickcolor='black'  # 刻度线颜色为黑色
+        ),
+        yaxis=dict(
+            title=dict(
+                text=ylabel if ylabel else fig.layout.yaxis.title.text,
+                font=dict(size=SCIENTIFIC_PLOT_STYLE['axis_title_font_size'], family=SCIENTIFIC_PLOT_STYLE['font_family'], color='black')
+            ),
+            tickfont=dict(size=SCIENTIFIC_PLOT_STYLE['tick_font_size'], family=SCIENTIFIC_PLOT_STYLE['font_family'], color='black'),
+            showgrid=True,
+            gridcolor=SCIENTIFIC_PLOT_STYLE['grid_color'],
+            gridwidth=SCIENTIFIC_PLOT_STYLE['grid_width'],
+            linecolor='black',
+            linewidth=1.5,
+            mirror=True,  # 显示右边框
+            showline=True,
+            tickcolor='black'  # 刻度线颜色为黑色
+        ),
+        legend=dict(
+            font=dict(size=SCIENTIFIC_PLOT_STYLE['legend_font_size'], family=SCIENTIFIC_PLOT_STYLE['font_family']),
+            title=dict(text=legend_title if legend_title else '', font=dict(size=SCIENTIFIC_PLOT_STYLE['legend_font_size'])),
+            bgcolor='white',
+            bordercolor='black',
+            borderwidth=1,
+            x=1.02,  # 图例在右侧
+            y=1,
+            xanchor='left',
+            yanchor='top'
+        ),
+        plot_bgcolor=SCIENTIFIC_PLOT_STYLE['plot_bgcolor'],
+        paper_bgcolor=SCIENTIFIC_PLOT_STYLE['paper_bgcolor'],
+        margin=dict(l=80, r=150, t=80, b=60),  # 增加边距以容纳标签
+        width=None,  # 使用容器宽度
+        height=500,  # 标准高度
+    )
+    
+    # 更新所有轨迹的样式
+    for trace in fig.data:
+        if hasattr(trace, 'line'):
+            if trace.line:
+                trace.line.width = SCIENTIFIC_PLOT_STYLE['line_width']
+        if hasattr(trace, 'marker'):
+            if trace.marker:
+                if 'size' in trace.marker:
+                    trace.marker.size = SCIENTIFIC_PLOT_STYLE['marker_size']
+    
+    return fig
+
 
 def rerun_app():
     """
@@ -411,7 +580,8 @@ def create_summary_table(df):
                     csv_filename = '_'.join(parts[csv_idx:csv_idx+5]) if len(parts) > csv_idx+4 else run_name
                 else:
                     csv_filename = run_name
-        summary_row['CSV文件'] = csv_filename if csv_filename else 'Unknown'
+        # 使用风速描述标签替代CSV文件名
+        summary_row['CSV文件'] = get_wind_speed_label(csv_filename) if csv_filename else 'Unknown'
         
         # 计算速度改善率（UKF相比纯惯导的改善百分比）
         # 速度东方向改善率
@@ -586,6 +756,13 @@ def plot_time_series(log_df, run_name: str):
             height=400,
             legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
         )
+        # 应用科研绘图样式
+        fig = apply_scientific_style(
+            fig,
+            title=f'{label}位置对比',
+            xlabel='时间 (s)',
+            ylabel=f'{label}位置 (m)'
+        )
         pos_figs.append(fig)
     
     # 速度对比图（X、Y、Z各一张）
@@ -642,6 +819,13 @@ def plot_time_series(log_df, run_name: str):
             height=400,
             legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
         )
+        # 应用科研绘图样式
+        fig = apply_scientific_style(
+            fig,
+            title=f'{label}速度对比',
+            xlabel='时间 (s)',
+            ylabel=f'{label}速度 (m/s)'
+        )
         vel_figs.append(fig)
     
     # 姿态对比图（X、Y、Z各一张）
@@ -697,6 +881,13 @@ def plot_time_series(log_df, run_name: str):
             yaxis_title=f'姿态{label} (度)',
             height=400,
             legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
+        )
+        # 应用科研绘图样式
+        fig = apply_scientific_style(
+            fig,
+            title=f'姿态{label}对比',
+            xlabel='时间 (s)',
+            ylabel=f'姿态{label} (度)'
         )
         att_figs.append(fig)
     
@@ -765,6 +956,13 @@ def plot_aerodynamic_force(log_df, run_name: str):
             height=400,
             legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
         )
+        # 应用科研绘图样式
+        fig = apply_scientific_style(
+            fig,
+            title=f'气动力{label}方向对比（neural_f vs real_fa）',
+            xlabel='时间 (s)',
+            ylabel=f'气动力{label} (N)'
+        )
         fa_figs.append(fig)
     
     # 图2：neural_f_total vs real_fa_total（X、Y、Z各一张）
@@ -806,6 +1004,13 @@ def plot_aerodynamic_force(log_df, run_name: str):
             height=400,
             legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
         )
+        # 应用科研绘图样式
+        fig = apply_scientific_style(
+            fig,
+            title=f'总力{label}方向对比（neural_f_total vs real_fa_total）',
+            xlabel='时间 (s)',
+            ylabel=f'总力{label} (N)'
+        )
         fa_total_figs.append(fig)
     
     return fa_figs, fa_total_figs
@@ -831,9 +1036,15 @@ def main():
     tracking_uri = st.sidebar.text_input("MLflow跟踪URI", value="./mlruns")
     project_root = st.sidebar.text_input("项目根目录", value=".")
     
-    # 加载数据
-    if st.sidebar.button("刷新数据"):
-        st.cache_data.clear()
+    # 重新加载数据按钮
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("**数据管理**")
+    if st.sidebar.button("🔄 重新加载数据", key="reload_data_btn", use_container_width=True, type="primary"):
+        st.cache_data.clear()  # 清除所有缓存
+        st.sidebar.success("正在重新加载数据...")
+        rerun_app()  # 重新运行应用以加载新数据
+    
+    st.sidebar.caption("💡 提示：运行新实验后，点击此按钮可刷新数据，无需重启应用")
     
     @st.cache_data
     def load_data():
@@ -1125,7 +1336,7 @@ def main():
                 csv_file = row.get('CSV文件', 'Unknown')
                 filter_type = row.get('滤波器类型', 'Unknown')
                 lambda1 = row.get('lambda1', 'N/A')
-                display_name = f"{csv_file} | {filter_type} | λ={lambda1}"
+                display_name = f"{csv_file} | {filter_type} | λ={lambda1}"  # λ 已经是 lambda 的符号表示
                 run_display_names.append(display_name)
             
             # 如果从其他地方跳转过来，使用session state中的选择
@@ -1294,7 +1505,7 @@ def main():
             available_params = []
             param_display_names = {
                 'Rk': 'Rk (UKF观测噪声)',
-                'lambda1': 'lambda1 (自适应参数)',
+                'lambda1': 'lambda',  # lambda1 显示为 lambda
                 'Q': 'Q (过程噪声)',
                 'R': 'R (观测噪声)',
                 'numPar': 'numPar (粒子数)'
@@ -1333,6 +1544,29 @@ def main():
                 param_values = summary_df[param_col].unique()
                 param_values = [v for v in param_values if v != 'N/A']
                 
+                # 对于numPar参数，创建参数值到索引的映射
+                use_index_for_numpar = (selected_param == 'numPar')
+                param_value_to_index = {}
+                param_index_to_value = {}
+                if use_index_for_numpar:
+                    # 尝试将参数值转换为数值并排序
+                    try:
+                        numeric_values = [float(v) for v in param_values]
+                        sorted_values = sorted(numeric_values)
+                        for idx, val in enumerate(sorted_values):
+                            param_value_to_index[str(val)] = idx
+                            param_index_to_value[idx] = str(int(val)) if val == int(val) else str(val)
+                    except:
+                        # 如果转换失败，按原始顺序
+                        for idx, val in enumerate(sorted(param_values)):
+                            param_value_to_index[str(val)] = idx
+                            param_index_to_value[idx] = str(val)
+                else:
+                    # 非numPar参数，索引就是参数值本身
+                    for val in param_values:
+                        param_value_to_index[str(val)] = str(val)
+                        param_index_to_value[str(val)] = str(val)
+                
                 if len(param_values) > 0:
                     # 准备数据：按参数值分组，每个参数值下有多个CSV文件的结果
                     analysis_data = []
@@ -1342,6 +1576,8 @@ def main():
                         
                         for _, row in param_data.iterrows():
                             csv_file = row.get('CSV文件', 'Unknown')
+                            # 确保使用风速标签（如果已经是标签则不变）
+                            csv_file = get_wind_speed_label(csv_file)
                             
                             # 转换为数值
                             def safe_float(val):
@@ -1378,8 +1614,15 @@ def main():
                             fa_rmse_z = row.get('气动力RMSE_z', 'N/A')
                             fa_rmse_total = row.get('气动力RMSE_总', 'N/A')
                             
+                            # 对于numPar，使用索引；对于其他参数，使用原值
+                            if use_index_for_numpar:
+                                param_display_value = str(param_value_to_index.get(str(param_val), str(param_val)))
+                            else:
+                                param_display_value = str(param_val)
+                            
                             analysis_data.append({
-                                '参数值': str(param_val),
+                                '参数值': param_display_value,  # 对于numPar是索引，其他是原值
+                                '参数实际值': str(param_val),  # 保存实际值用于图例
                                 'CSV文件': csv_file,
                                 # 速度RMSE
                                 'UKF速度RMSE_东': safe_float(ukf_vel_east),
@@ -1425,21 +1668,31 @@ def main():
                             fig_data = []
                             for _, row in analysis_df.iterrows():
                                 if row[ukf_col] is not None:
+                                    # 对于柱状图，图例显示CSV文件和实际粒子数值（因为柱状图需要区分每个柱子）
+                                    if use_index_for_numpar:
+                                        legend_label = f"{row['CSV文件']} (numPar={row.get('参数实际值', row['参数值'])})"
+                                    else:
+                                        legend_label = row['CSV文件']
+                                    
                                     fig_data.append({
                                         '参数值': row['参数值'],
-                                        'CSV文件': row['CSV文件'],
+                                        'CSV文件': legend_label,  # 柱状图显示包含实际值的图例标签
                                         'UKF': row[ukf_col],
                                         '纯惯导': row[pure_col] if pure_col and row[pure_col] is not None else None
                                     })
                             
                             if fig_data:
                                 fig_df = pd.DataFrame(fig_data)
-                                # 尝试按参数值排序
+                                # 尝试按参数值排序（对于索引，直接按数值排序）
                                 try:
                                     fig_df['参数值_数值'] = fig_df['参数值'].astype(float)
                                     fig_df = fig_df.sort_values('参数值_数值')
                                 except:
-                                    pass
+                                    try:
+                                        fig_df['参数值_数值'] = fig_df['参数值'].astype(int)
+                                        fig_df = fig_df.sort_values('参数值_数值')
+                                    except:
+                                        pass
                                 
                                 if pure_col:
                                     fig = px.bar(
@@ -1447,9 +1700,10 @@ def main():
                                         x='参数值',
                                         y=['UKF', '纯惯导'],
                                         color='CSV文件',
-                                        title=f'{param_display_names.get(selected_param, selected_param)} 对{metric_name} {direction_label}方向的影响',
+                                        title=f'Effect of {param_display_names.get(selected_param, selected_param)} on {metric_name} RMSE ({direction_label})',
                                         barmode='group',
-                                        labels={'value': f'RMSE ({unit})', '参数值': param_display_names.get(selected_param, selected_param)}
+                                        labels={'value': f'RMSE ({unit})', '参数值': param_display_names.get(selected_param, selected_param)},
+                                        color_discrete_sequence=px.colors.qualitative.Set2
                                     )
                                 else:
                                     fig = px.bar(
@@ -1457,31 +1711,66 @@ def main():
                                         x='参数值',
                                         y='UKF',
                                         color='CSV文件',
-                                        title=f'{param_display_names.get(selected_param, selected_param)} 对{metric_name} {direction_label}方向的影响',
+                                        title=f'Effect of {param_display_names.get(selected_param, selected_param)} on {metric_name} RMSE ({direction_label})',
                                         barmode='group',
-                                        labels={'value': f'RMSE ({unit})', '参数值': param_display_names.get(selected_param, selected_param)}
+                                        labels={'value': f'RMSE ({unit})', '参数值': param_display_names.get(selected_param, selected_param)},
+                                        color_discrete_sequence=px.colors.qualitative.Set2
                                     )
-                                fig.update_layout(height=400)
+                                # 应用科研绘图样式
+                                # 对于numPar，横坐标标签显示为"参数索引"
+                                xlabel_text = "参数索引" if use_index_for_numpar else param_display_names.get(selected_param, selected_param)
+                                fig = apply_scientific_style(
+                                    fig,
+                                    xlabel=xlabel_text,
+                                    ylabel=f'RMSE ({unit})'
+                                )
+                                
+                                # 如果是numPar，在图表下方添加说明
+                                if use_index_for_numpar:
+                                    st.caption(f"横坐标为参数索引，图例中显示对应的粒子数（numPar）值")
+                                
                                 st.plotly_chart(fig, use_container_width=True)
                         
                         elif viz_type == '折线图':
                             fig_data = []
                             for _, row in analysis_df.iterrows():
                                 if row[ukf_col] is not None:
+                                    # 对于折线图，图例只显示CSV文件（风速），不包含numPar值
+                                    # 这样每个CSV文件就是一条折线
+                                    legend_label = row['CSV文件']
+                                    
+                                    # 对于numPar，使用实际值作为横坐标（但会设置为分类轴以实现均匀间隔）
+                                    if use_index_for_numpar:
+                                        x_value = row.get('参数实际值', row['参数值'])  # 使用实际粒子数值
+                                    else:
+                                        x_value = row['参数值']
+                                    
                                     fig_data.append({
-                                        '参数值': row['参数值'],
-                                        'CSV文件': row['CSV文件'],
+                                        '参数值': str(x_value),  # 转换为字符串，用于分类轴
+                                        'CSV文件': legend_label,  # 只显示CSV文件（风速）
                                         'UKF': row[ukf_col],
-                                        '纯惯导': row[pure_col] if pure_col and row[pure_col] is not None else None
+                                        '纯惯导': row[pure_col] if pure_col and row[pure_col] is not None else None,
+                                        '参数实际值': row.get('参数实际值', row['参数值'])  # 保存实际值用于排序
                                     })
                             
                             if fig_data:
                                 fig_df = pd.DataFrame(fig_data)
+                                # 对于numPar，按实际值排序；对于其他参数，按参数值排序
                                 try:
-                                    fig_df['参数值_数值'] = fig_df['参数值'].astype(float)
-                                    fig_df = fig_df.sort_values('参数值_数值')
+                                    if use_index_for_numpar:
+                                        fig_df['排序值'] = fig_df['参数实际值'].astype(float)
+                                    else:
+                                        fig_df['排序值'] = fig_df['参数值'].astype(float)
+                                    fig_df = fig_df.sort_values('排序值')
                                 except:
-                                    pass
+                                    try:
+                                        if use_index_for_numpar:
+                                            fig_df['排序值'] = fig_df['参数实际值'].astype(int)
+                                        else:
+                                            fig_df['排序值'] = fig_df['参数值'].astype(int)
+                                        fig_df = fig_df.sort_values('排序值')
+                                    except:
+                                        pass
                                 
                                 if pure_col:
                                     fig = px.line(
@@ -1489,9 +1778,10 @@ def main():
                                         x='参数值',
                                         y=['UKF', '纯惯导'],
                                         color='CSV文件',
-                                        title=f'{param_display_names.get(selected_param, selected_param)} 对{metric_name} {direction_label}方向的影响',
+                                        title=f'Effect of {param_display_names.get(selected_param, selected_param)} on {metric_name} RMSE ({direction_label})',
                                         markers=True,
-                                        labels={'value': f'RMSE ({unit})', '参数值': param_display_names.get(selected_param, selected_param)}
+                                        labels={'value': f'RMSE ({unit})', '参数值': param_display_names.get(selected_param, selected_param)},
+                                        color_discrete_sequence=px.colors.qualitative.Set2
                                     )
                                 else:
                                     fig = px.line(
@@ -1499,34 +1789,78 @@ def main():
                                         x='参数值',
                                         y='UKF',
                                         color='CSV文件',
-                                        title=f'{param_display_names.get(selected_param, selected_param)} 对{metric_name} {direction_label}方向的影响',
+                                        title=f'Effect of {param_display_names.get(selected_param, selected_param)} on {metric_name} RMSE ({direction_label})',
                                         markers=True,
-                                        labels={'value': f'RMSE ({unit})', '参数值': param_display_names.get(selected_param, selected_param)}
+                                        labels={'value': f'RMSE ({unit})', '参数值': param_display_names.get(selected_param, selected_param)},
+                                        color_discrete_sequence=px.colors.qualitative.Set2
                                     )
-                                fig.update_layout(height=400)
+                                
+                                # 对于numPar，将x轴设置为分类轴，实现均匀间隔
+                                if use_index_for_numpar:
+                                    fig.update_xaxes(type='category')  # 设置为分类轴，实现均匀间隔
+                                
+                                # 应用科研绘图样式
+                                xlabel_text = param_display_names.get(selected_param, selected_param)
+                                fig = apply_scientific_style(
+                                    fig,
+                                    xlabel=xlabel_text,
+                                    ylabel=f'RMSE ({unit})'
+                                )
+                                
+                                # 如果是numPar折线图，在图表下方添加说明
+                                if use_index_for_numpar:
+                                    st.caption(f"横坐标显示粒子数（numPar）值，刻度间隔均匀。图例中每条线代表一个风速条件。")
+                                
                                 st.plotly_chart(fig, use_container_width=True)
                         
                         elif viz_type == '热力图':
-                            pivot_data = analysis_df.pivot_table(
-                                index='CSV文件',
-                                columns='参数值',
-                                values=ukf_col,
-                                aggfunc='mean'
-                            )
+                            # 对于热力图，也需要处理numPar的情况
+                            pivot_df = analysis_df.copy()
+                            if use_index_for_numpar:
+                                # 热力图的索引使用包含实际值的标签
+                                pivot_df['图例标签'] = pivot_df.apply(
+                                    lambda row: f"{row['CSV文件']} (numPar={row.get('参数实际值', row['参数值'])})",
+                                    axis=1
+                                )
+                                pivot_data = pivot_df.pivot_table(
+                                    index='图例标签',
+                                    columns='参数值',
+                                    values=ukf_col,
+                                    aggfunc='mean'
+                                )
+                            else:
+                                pivot_data = pivot_df.pivot_table(
+                                    index='CSV文件',
+                                    columns='参数值',
+                                    values=ukf_col,
+                                    aggfunc='mean'
+                                )
                             
                             if not pivot_data.empty:
                                 fig = px.imshow(
                                     pivot_data.values,
                                     x=pivot_data.columns,
                                     y=pivot_data.index,
-                                    labels=dict(x=param_display_names.get(selected_param, selected_param), 
-                                              y='CSV文件', 
+                                    labels=dict(x="参数索引" if use_index_for_numpar else param_display_names.get(selected_param, selected_param), 
+                                              y='Dataset', 
                                               color=f'RMSE ({unit})'),
-                                    title=f'{param_display_names.get(selected_param, selected_param)} 对{metric_name} {direction_label}方向的影响（热力图）',
+                                    title=f'Heatmap: Effect of {param_display_names.get(selected_param, selected_param)} on {metric_name} RMSE ({direction_label})',
                                     color_continuous_scale='Viridis',
                                     aspect='auto'
                                 )
-                                fig.update_layout(height=400)
+                                # 应用科研绘图样式
+                                # 对于numPar，横坐标标签显示为"参数索引"
+                                xlabel_text = "参数索引" if use_index_for_numpar else param_display_names.get(selected_param, selected_param)
+                                fig = apply_scientific_style(
+                                    fig,
+                                    xlabel=xlabel_text,
+                                    ylabel='Dataset'
+                                )
+                                
+                                # 如果是numPar，在图表下方添加说明
+                                if use_index_for_numpar:
+                                    st.caption(f"横坐标为参数索引，图例中显示对应的粒子数（numPar）值")
+                                
                                 st.plotly_chart(fig, use_container_width=True)
                         
                         elif viz_type == '组合视图':
@@ -1536,9 +1870,15 @@ def main():
                                 fig_data = []
                                 for _, row in analysis_df.iterrows():
                                     if row[ukf_col] is not None:
+                                        # 柱状图显示包含实际值的图例标签
+                                        if use_index_for_numpar:
+                                            legend_label = f"{row['CSV文件']} (numPar={row.get('参数实际值', row['参数值'])})"
+                                        else:
+                                            legend_label = row['CSV文件']
+                                        
                                         fig_data.append({
                                             '参数值': row['参数值'],
-                                            'CSV文件': row['CSV文件'],
+                                            'CSV文件': legend_label,
                                             'UKF': row[ukf_col]
                                         })
                                 
@@ -1548,28 +1888,45 @@ def main():
                                         fig_df['参数值_数值'] = fig_df['参数值'].astype(float)
                                         fig_df = fig_df.sort_values('参数值_数值')
                                     except:
-                                        pass
+                                        try:
+                                            fig_df['参数值_数值'] = fig_df['参数值'].astype(int)
+                                            fig_df = fig_df.sort_values('参数值_数值')
+                                        except:
+                                            pass
                                     
                                     fig = px.bar(
                                         fig_df,
                                         x='参数值',
                                         y='UKF',
                                         color='CSV文件',
-                                        title=f'UKF {metric_name} {direction_label}方向（柱状图）',
+                                        title=f'UKF {metric_name} RMSE ({direction_label})',
                                         barmode='group',
-                                        labels={'value': f'RMSE ({unit})'}
+                                        labels={'value': f'RMSE ({unit})', '参数值': param_display_names.get(selected_param, selected_param)},
+                                        color_discrete_sequence=px.colors.qualitative.Set2
                                     )
-                                    fig.update_layout(height=350)
+                                    # 应用科研绘图样式
+                                    # 对于numPar，横坐标标签显示为"参数索引"
+                                    xlabel_text = "参数索引" if use_index_for_numpar else param_display_names.get(selected_param, selected_param)
+                                    fig = apply_scientific_style(
+                                        fig,
+                                        xlabel=xlabel_text,
+                                        ylabel=f'RMSE ({unit})'
+                                    )
+                                    fig.update_layout(height=400)
                                     st.plotly_chart(fig, use_container_width=True)
                             
                             with col2:
                                 fig_data = []
                                 for _, row in analysis_df.iterrows():
                                     if row[ukf_col] is not None:
+                                        # 折线图只显示CSV文件（风速），每个CSV文件一条线
+                                        legend_label = row['CSV文件']
+                                        
                                         fig_data.append({
                                             '参数值': row['参数值'],
-                                            'CSV文件': row['CSV文件'],
-                                            'UKF': row[ukf_col]
+                                            'CSV文件': legend_label,  # 折线图只显示CSV文件
+                                            'UKF': row[ukf_col],
+                                            '参数实际值': row.get('参数实际值', row['参数值'])  # 保存实际值用于说明
                                         })
                                 
                                 if fig_data:
@@ -1578,18 +1935,41 @@ def main():
                                         fig_df['参数值_数值'] = fig_df['参数值'].astype(float)
                                         fig_df = fig_df.sort_values('参数值_数值')
                                     except:
-                                        pass
+                                        try:
+                                            fig_df['参数值_数值'] = fig_df['参数值'].astype(int)
+                                            fig_df = fig_df.sort_values('参数值_数值')
+                                        except:
+                                            pass
                                     
                                     fig = px.line(
                                         fig_df,
                                         x='参数值',
                                         y='UKF',
                                         color='CSV文件',
-                                        title=f'UKF {metric_name} {direction_label}方向（折线图）',
+                                        title=f'UKF {metric_name} RMSE ({direction_label})',
                                         markers=True,
-                                        labels={'value': f'RMSE ({unit})'}
+                                        labels={'value': f'RMSE ({unit})', '参数值': param_display_names.get(selected_param, selected_param)},
+                                        color_discrete_sequence=px.colors.qualitative.Set2
                                     )
-                                    fig.update_layout(height=350)
+                                    # 应用科研绘图样式
+                                    # 对于numPar，横坐标标签显示为"参数索引"
+                                    xlabel_text = "参数索引" if use_index_for_numpar else param_display_names.get(selected_param, selected_param)
+                                    fig = apply_scientific_style(
+                                        fig,
+                                        xlabel=xlabel_text,
+                                        ylabel=f'RMSE ({unit})'
+                                    )
+                                    fig.update_layout(height=400)
+                                    
+                                    # 如果是numPar折线图，在图表下方添加说明，显示索引对应的实际粒子数值
+                                    if use_index_for_numpar and viz_type == '组合视图':
+                                        # 获取所有唯一的参数实际值（粒子数），用于说明
+                                        unique_actual_values = sorted(set([row.get('参数实际值', '') for row in fig_data if '参数实际值' in row]), 
+                                                                      key=lambda x: float(x) if str(x).replace('.','').isdigit() else 0)
+                                        if unique_actual_values:
+                                            actual_values_str = ', '.join([str(v) for v in unique_actual_values])
+                                            st.caption(f"横坐标为参数索引，对应的粒子数（numPar）值：{actual_values_str}")
+                                    
                                     st.plotly_chart(fig, use_container_width=True)
                     
                     # 根据指标类型显示相应的图表
@@ -1647,11 +2027,40 @@ def main():
                 # 散点图
                 scatter_data = df[[selected_param, selected_metric]].dropna()
                 if not scatter_data.empty:
-                    fig = px.scatter(
-                        scatter_data,
-                        x=selected_param,
-                        y=selected_metric,
-                        title=f'{selected_param.replace("param_", "")} vs {selected_metric.replace("metric_", "")}'
+                    param_name = selected_param.replace("param_", "").replace("_", " ").title()
+                    metric_name = selected_metric.replace("metric_", "").replace("_", " ").title()
+                    
+                    # 尝试添加趋势线（如果statsmodels可用）
+                    try:
+                        fig = px.scatter(
+                            scatter_data,
+                            x=selected_param,
+                            y=selected_metric,
+                            title=f'{param_name} vs {metric_name}',
+                            labels={selected_param: param_name, selected_metric: metric_name},
+                            color_discrete_sequence=['#2E86AB'],  # 专业蓝色
+                            trendline='ols',  # 添加趋势线
+                            trendline_color_override='#D32F2F'  # 红色趋势线
+                        )
+                        # 更新趋势线样式
+                        if len(fig.data) > 1:  # 如果有趋势线
+                            fig.data[1].line.width = 2
+                            fig.data[1].line.dash = 'dash'
+                    except:
+                        # 如果trendline不可用，创建不带趋势线的散点图
+                        fig = px.scatter(
+                            scatter_data,
+                            x=selected_param,
+                            y=selected_metric,
+                            title=f'{param_name} vs {metric_name}',
+                            labels={selected_param: param_name, selected_metric: metric_name},
+                            color_discrete_sequence=['#2E86AB']  # 专业蓝色
+                        )
+                    # 应用科研绘图样式
+                    fig = apply_scientific_style(
+                        fig,
+                        xlabel=param_name,
+                        ylabel=metric_name
                     )
                     st.plotly_chart(fig, use_container_width=True)
     

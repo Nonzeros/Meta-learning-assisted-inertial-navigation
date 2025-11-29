@@ -204,9 +204,14 @@ def generate_param_combinations(scan_config: Dict[str, Any], base_config: Dict[s
             pf_scan = scan_config.get('particle_filter_scan', {})
             R_values = pf_scan.get('R_values', [0.1])
             q0_values = pf_scan.get('q0_values', [0.1])
+            lambda1_values = pf_scan.get('lambda1_values', [base_config.get('filter', {}).get('lambda1', 0.1)])
+            numPar_values = pf_scan.get('numPar_values', [base_config.get('filter', {}).get('numPar', 30)])
             
-            for R, q0 in itertools.product(R_values, q0_values):
+            # 生成所有粒子滤波参数组合（lambda1, numPar, R, q0）
+            for lambda1, numPar, R, q0 in itertools.product(lambda1_values, numPar_values, R_values, q0_values):
                 new_config = copy.deepcopy(base_config)
+                new_config['filter']['lambda1'] = lambda1
+                new_config['filter']['numPar'] = int(numPar)  # 确保是整数
                 new_config['particle_filter']['R'] = R
                 new_config['particle_filter']['q0'] = q0
                 
