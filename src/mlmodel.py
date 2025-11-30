@@ -50,20 +50,29 @@ class H_Net_CrossEntropy(nn.Module):
         return x
 
 def save_model(*, phi_net, h_net, modelname, options):
-    if not os.path.isdir('./models3/'):
-        os.makedirs('./models3/')
+    # 获取项目根目录（mlmodel.py 在 src/ 目录下）
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    models_dir = os.path.join(project_root, 'models')
+    
+    if not os.path.isdir(models_dir):
+        os.makedirs(models_dir)
+    
+    model_path = os.path.join(models_dir, modelname + '.pth')
+    
     if h_net is not None:
         torch.save({
             'phi_net_state_dict': phi_net.state_dict(),
             'h_net_state_dict': h_net.state_dict(),
             'options': dict(options)
-        }, './models3/' + modelname + '.pth')
+        }, model_path)
     else:
         torch.save({
             'phi_net_state_dict': phi_net.state_dict(),
             'h_net_state_dict': None,
             'options': dict(options)
-        }, './models3/' + modelname + '.pth')
+        }, model_path)
+    
+    print(f"模型已保存到: {model_path}")
 
 def load_model(modelname, modelfolder=None):
     # 如果没有指定模型文件夹，自动检测项目根目录

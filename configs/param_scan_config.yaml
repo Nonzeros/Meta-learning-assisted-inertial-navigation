@@ -75,7 +75,7 @@ single_param_scan:
   # - "matlab_ukf.dpos": MATLAB UKF位置误差
   # param_name: "numPar"  # 要扫描的参数：粒子滤波的粒子数量
   # param_name: "lambda1" 
-  param_name: "lambda1"  # 要扫描的参数：MATLAB UKF位置误差（用于设置Rk矩阵）
+  param_name: "numPar"  # 要扫描的参数：MATLAB UKF位置误差（用于设置Rk矩阵）
   
   # 参数值列表
   # 测试不同的pos_err值（位置误差，单位：米）
@@ -99,8 +99,8 @@ single_param_scan:
   #   - [0.1, 0.1, 0.1]
   #   - [0.2, 0.2, 0.2]
   #   - [0.5, 0.5, 0.5]
-  # param_values: [1,10,30,50,100,500,1000]
-  param_values: [0, 0.1, 0.3, 0.6, 0.9,1.2]
+  param_values: [1,10,30,50,100,500,1000]
+  # param_values: [0, 0.1, 0.3, 0.6, 0.9,1.2]
 
 # 粒子滤波参数扫描（当filter.type=2时使用）
 particle_filter_scan:
