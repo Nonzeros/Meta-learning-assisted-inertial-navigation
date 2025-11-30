@@ -26,7 +26,7 @@ kf = ukf(kf);
 % 保存融合前的INS预测位置（用于日志记录）
 ins_pred_pos = ins.pos;
 
-kf = ukf(kf, ins.pos-pvt, 'M');  % UKF filter
+kf = ukf(kf, ins.pos-pvt, 'B');  % UKF filter
 [kf, ins] = kffeedback(kf, ins, 1, 'avp');
 
 avp_kf = [ins.avp', t];
