@@ -89,7 +89,7 @@ SCIENTIFIC_PLOT_STYLE = {
     'title_font_size': 16,
     'axis_title_font_size': 16,  # 从14改为16，与刻度字体大小一致
     'tick_font_size': 16,  # 从12增加到16（加大4号）
-    'legend_font_size': 12,
+    'legend_font_size': 10,  # 从12减小到10，使图例更紧凑
     'color_scale': 'Set2',  # 专业配色方案
     'grid_color': 'rgba(0, 0, 0, 0.2)',  # 改为黑色（原来是灰色）
     'grid_width': 1,
@@ -163,11 +163,14 @@ def apply_scientific_style(fig, title=None, xlabel=None, ylabel=None, legend_tit
             x=1.02,  # 图例在右侧
             y=1,
             xanchor='left',
-            yanchor='top'
+            yanchor='top',
+            itemwidth=30,  # 图例项宽度（最小值30）
+            tracegroupgap=3,  # 减小图例项之间的间距
+            itemsizing='constant'  # 固定图例项大小
         ),
         plot_bgcolor=SCIENTIFIC_PLOT_STYLE['plot_bgcolor'],
         paper_bgcolor=SCIENTIFIC_PLOT_STYLE['paper_bgcolor'],
-        margin=dict(l=80, r=150, t=80, b=60),  # 增加边距以容纳标签
+        margin=dict(l=80, r=120, t=80, b=60),  # 减小右边距，从150改为120
         width=None,  # 使用容器宽度
         height=500,  # 标准高度
     )
@@ -687,12 +690,12 @@ def plot_time_series(log_df, run_name: str):
     - 真实值：绿色点划线 (#06A77D, dot)
     """
     if log_df is None or log_df.empty:
-        return [], [], []
+        return [], [], [], []
     
     time_col = 'time'
     if time_col not in log_df.columns:
         st.warning("日志文件中没有找到时间列")
-        return [], [], []
+        return [], [], [], []
     
     # 排除最后几个数据点（与main.py保持一致）
     exclude_last = min(5, len(log_df) - 1)
@@ -894,6 +897,465 @@ def plot_time_series(log_df, run_name: str):
     return pos_figs, vel_figs, att_figs
 
 
+def plot_innovation_and_r(log_df, run_name: str):
+    """
+    绘制新息、修正值（K*innovation）和自适应R矩阵的时间序列图
+    
+    参数:
+        log_df: 日志数据DataFrame
+        run_name: 运行名称
+    
+    返回:
+        innovation_figs: 新息图列表（X、Y、Z三个方向）
+        correction_figs: 修正值图列表（X、Y、Z三个方向）
+        r_figs: R矩阵图（对角线元素）
+    """
+    if log_df is None or log_df.empty:
+        return [], [], []
+    
+    time_col = 'time'
+    if time_col not in log_df.columns:
+        st.warning("日志文件中没有找到时间列")
+        return [], [], []
+    
+    # 排除最后几个数据点
+    exclude_last = min(5, len(log_df) - 1)
+    if exclude_last > 0:
+        log_df_plot = log_df.iloc[:-exclude_last].copy()
+    else:
+        log_df_plot = log_df.copy()
+    
+    innovation_figs = []
+    correction_figs = []
+    r_figs = []
+    
+    # 1. 绘制新息图（X、Y、Z三个方向）
+    innovation_directions = ['x', 'y', 'z']
+    innovation_labels = ['东向', '北向', '天向']
+    
+    for dir, label in zip(innovation_directions, innovation_labels):
+        innovation_col = f'innovation_{dir}'
+        if innovation_col in log_df_plot.columns:
+            fig = go.Figure()
+            
+            valid_mask = pd.notna(log_df_plot[innovation_col])
+            if valid_mask.any():
+                fig.add_trace(go.Scatter(
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, innovation_col],
+                    name=f'新息{label}',
+                    mode='lines',
+                    line=dict(color='#2E86AB', width=2)
+                ))
+                
+                # 添加零线
+                fig.add_hline(y=0, line_dash="dash", line_color="gray", 
+                             annotation_text="零线", annotation_position="right")
+            
+            fig = apply_scientific_style(
+                fig,
+                title=f'新息{label}时间序列',
+                xlabel='时间 (s)',
+                ylabel=f'新息{label} (m)'
+            )
+            innovation_figs.append(fig)
+        else:
+            # 如果列不存在，创建空图
+            fig = go.Figure()
+            fig.add_annotation(text=f"数据列 {innovation_col} 不存在", 
+                             xref="paper", yref="paper", x=0.5, y=0.5, 
+                             showarrow=False)
+            innovation_figs.append(fig)
+    
+    # 2. 绘制修正值图（K * innovation，X、Y、Z三个方向）
+    correction_directions = ['x', 'y', 'z']
+    correction_labels = ['东向', '北向', '天向']
+    
+    for dir, label in zip(correction_directions, correction_labels):
+        correction_col = f'correction_{dir}'
+        if correction_col in log_df_plot.columns:
+            fig = go.Figure()
+            
+            valid_mask = pd.notna(log_df_plot[correction_col])
+            if valid_mask.any():
+                fig.add_trace(go.Scatter(
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, correction_col],
+                    name=f'修正值{label}',
+                    mode='lines',
+                    line=dict(color='#F24236', width=2)
+                ))
+                
+                # 添加零线
+                fig.add_hline(y=0, line_dash="dash", line_color="gray", 
+                             annotation_text="零线", annotation_position="right")
+            
+            fig = apply_scientific_style(
+                fig,
+                title=f'修正值{label}时间序列（K × 新息）',
+                xlabel='时间 (s)',
+                ylabel=f'修正值{label} (m)'
+            )
+            correction_figs.append(fig)
+        else:
+            # 如果列不存在，创建空图
+            fig = go.Figure()
+            fig.add_annotation(text=f"数据列 {correction_col} 不存在", 
+                             xref="paper", yref="paper", x=0.5, y=0.5, 
+                             showarrow=False)
+            correction_figs.append(fig)
+    
+    # 3. 绘制R矩阵对角线元素图
+    r_cols = ['R_adaptive_00', 'R_adaptive_11', 'R_adaptive_22']
+    r_labels = ['X方向', 'Y方向', 'Z方向']
+    r_colors = ['#2E86AB', '#06A77D', '#F24236']
+    
+    fig_r = go.Figure()
+    
+    for r_col, r_label, r_color in zip(r_cols, r_labels, r_colors):
+        if r_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[r_col]) & (log_df_plot[r_col] > 0)
+            if valid_mask.any():
+                fig_r.add_trace(go.Scatter(
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, r_col],
+                    name=f'R {r_label}',
+                    mode='lines',
+                    line=dict(color=r_color, width=2)
+                ))
+    
+    if len(fig_r.data) > 0:
+        fig_r = apply_scientific_style(
+            fig_r,
+            title='自适应观测噪声协方差矩阵R对角线元素',
+            xlabel='时间 (s)',
+            ylabel='R矩阵对角线元素 (m²)'
+        )
+        r_figs.append(fig_r)
+    else:
+        # 如果没有数据，创建空图
+        fig_r = go.Figure()
+        fig_r.add_annotation(text="R矩阵数据不存在", 
+                           xref="paper", yref="paper", x=0.5, y=0.5, 
+                           showarrow=False)
+        r_figs.append(fig_r)
+    
+    return innovation_figs, correction_figs, r_figs
+
+
+def plot_correction_comparison(log_dfs_dict, run_names_dict):
+    """
+    绘制多实验修正值对比图
+    
+    参数:
+        log_dfs_dict: 字典，key为实验标识（用于图例），value为日志数据DataFrame
+        run_names_dict: 字典，key为实验标识，value为运行名称（用于显示）
+    
+    返回:
+        correction_figs: 修正值对比图列表（X、Y、Z三个方向）
+    """
+    if not log_dfs_dict:
+        return []
+    
+    correction_figs = []
+    correction_directions = ['x', 'y', 'z']
+    correction_labels = ['东向', '北向', '天向']
+    
+    # 定义颜色列表（用于区分不同实验）
+    colors = ['#2E86AB', '#F24236', '#06A77D', '#F77F00', '#8338EC', '#FF006E', '#3A86FF', '#FB5607']
+    
+    for dir, label in zip(correction_directions, correction_labels):
+        fig = go.Figure()
+        correction_col = f'correction_{dir}'
+        time_col = 'time'
+        
+        color_idx = 0
+        for exp_key, log_df in log_dfs_dict.items():
+            if log_df is None or log_df.empty:
+                continue
+            
+            if time_col not in log_df.columns or correction_col not in log_df.columns:
+                continue
+            
+            # 排除最后几个数据点
+            exclude_last = min(5, len(log_df) - 1)
+            if exclude_last > 0:
+                log_df_plot = log_df.iloc[:-exclude_last].copy()
+            else:
+                log_df_plot = log_df.copy()
+            
+            valid_mask = pd.notna(log_df_plot[correction_col])
+            if valid_mask.any():
+                # 获取实验名称用于图例
+                exp_name = run_names_dict.get(exp_key, exp_key)
+                
+                fig.add_trace(go.Scatter(
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, correction_col],
+                    name=exp_name,
+                    mode='lines',
+                    line=dict(color=colors[color_idx % len(colors)], width=2)
+                ))
+                color_idx += 1
+        
+        # 添加零线
+        fig.add_hline(y=0, line_dash="dash", line_color="gray", 
+                     annotation_text="零线", annotation_position="right")
+        
+        if len(fig.data) > 0:
+            fig = apply_scientific_style(
+                fig,
+                title=f'修正值{label}时间序列对比（K × 新息）',
+                xlabel='时间 (s)',
+                ylabel=f'修正值{label} (m)'
+            )
+            # 对于多实验对比图，将图例放在底部，使用更紧凑的设置
+            fig.update_layout(
+                legend=dict(
+                    orientation="h",  # 水平布局
+                    yanchor="bottom",
+                    y=-0.25,  # 图例在图表下方
+                    xanchor="center",
+                    x=0.5,  # 居中
+                    font=dict(size=9, family=SCIENTIFIC_PLOT_STYLE['font_family']),  # 更小的字体
+                    bgcolor='white',
+                    bordercolor='black',
+                    borderwidth=1,
+                    itemwidth=30,  # 图例项宽度（最小值30）
+                    tracegroupgap=2,  # 减小图例项之间的间距
+                    itemsizing='constant'  # 固定图例项大小
+                ),
+                margin=dict(l=80, r=80, t=80, b=120)  # 增加底部边距以容纳图例（根据图例项数量可能需要调整）
+            )
+            correction_figs.append(fig)
+        else:
+            # 如果没有数据，创建空图
+            fig = go.Figure()
+            fig.add_annotation(text=f"没有可用的修正值{label}数据", 
+                             xref="paper", yref="paper", x=0.5, y=0.5, 
+                             showarrow=False)
+            correction_figs.append(fig)
+    
+    return correction_figs
+
+
+def plot_multi_experiment_comparison(log_dfs_dict, run_names_dict, data_prefix, data_labels, title_prefix, ylabel_unit):
+    """
+    通用的多实验对比绘图函数
+    
+    参数:
+        log_dfs_dict: 字典，key为实验标识，value为日志数据DataFrame
+        run_names_dict: 字典，key为实验标识，value为运行名称（用于显示）
+        data_prefix: 数据列前缀（如 'dynamic_pos', 'dynamic_vel', 'dynamic_vdot'）
+        data_labels: 方向标签列表（如 ['东向', '北向', '天向']）
+        title_prefix: 标题前缀（如 '动力学模型位置', '动力学模型速度'）
+        ylabel_unit: Y轴单位（如 'm', 'm/s', 'm/s²'）
+    
+    返回:
+        figs: 对比图列表（X、Y、Z三个方向）
+    """
+    if not log_dfs_dict:
+        return []
+    
+    figs = []
+    directions = ['x', 'y', 'z']
+    
+    # 定义颜色列表（用于区分不同实验）
+    colors = ['#2E86AB', '#F24236', '#06A77D', '#F77F00', '#8338EC', '#FF006E', '#3A86FF', '#FB5607']
+    
+    for dir, label in zip(directions, data_labels):
+        fig = go.Figure()
+        data_col = f'{data_prefix}_{dir}'
+        time_col = 'time'
+        
+        color_idx = 0
+        for exp_key, log_df in log_dfs_dict.items():
+            if log_df is None or log_df.empty:
+                continue
+            
+            if time_col not in log_df.columns or data_col not in log_df.columns:
+                continue
+            
+            # 排除最后几个数据点
+            exclude_last = min(5, len(log_df) - 1)
+            if exclude_last > 0:
+                log_df_plot = log_df.iloc[:-exclude_last].copy()
+            else:
+                log_df_plot = log_df.copy()
+            
+            valid_mask = pd.notna(log_df_plot[data_col])
+            if valid_mask.any():
+                # 获取实验名称用于图例
+                exp_name = run_names_dict.get(exp_key, exp_key)
+                
+                fig.add_trace(go.Scatter(
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, data_col],
+                    name=exp_name,
+                    mode='lines',
+                    line=dict(color=colors[color_idx % len(colors)], width=2)
+                ))
+                color_idx += 1
+        
+        if len(fig.data) > 0:
+            fig = apply_scientific_style(
+                fig,
+                title=f'{title_prefix}{label}时间序列对比',
+                xlabel='时间 (s)',
+                ylabel=f'{title_prefix}{label} ({ylabel_unit})'
+            )
+            # 对于多实验对比图，将图例放在底部，使用更紧凑的设置
+            fig.update_layout(
+                legend=dict(
+                    orientation="h",  # 水平布局
+                    yanchor="bottom",
+                    y=-0.25,  # 图例在图表下方
+                    xanchor="center",
+                    x=0.5,  # 居中
+                    font=dict(size=9, family=SCIENTIFIC_PLOT_STYLE['font_family']),  # 更小的字体
+                    bgcolor='white',
+                    bordercolor='black',
+                    borderwidth=1,
+                    itemwidth=30,  # 图例项宽度（最小值30）
+                    tracegroupgap=2,  # 减小图例项之间的间距
+                    itemsizing='constant'  # 固定图例项大小
+                ),
+                margin=dict(l=80, r=80, t=80, b=120)  # 增加底部边距以容纳图例
+            )
+            figs.append(fig)
+        else:
+            # 如果没有数据，创建空图
+            fig = go.Figure()
+            fig.add_annotation(text=f"没有可用的{title_prefix}{label}数据", 
+                             xref="paper", yref="paper", x=0.5, y=0.5, 
+                             showarrow=False)
+            figs.append(fig)
+    
+    return figs
+
+
+def plot_dynamic_data_single(log_df, run_name: str):
+    """
+    绘制单个实验的动力学模型数据（位置、速度、加速度）
+    
+    参数:
+        log_df: 日志数据DataFrame
+        run_name: 运行名称
+    
+    返回:
+        pos_figs: 位置图列表（X、Y、Z三个方向）
+        vel_figs: 速度图列表（X、Y、Z三个方向）
+        vdot_figs: 加速度图列表（X、Y、Z三个方向）
+    """
+    if log_df is None or log_df.empty:
+        return [], [], []
+    
+    time_col = 'time'
+    if time_col not in log_df.columns:
+        st.warning("日志文件中没有找到时间列")
+        return [], [], []
+    
+    # 排除最后几个数据点
+    exclude_last = min(5, len(log_df) - 1)
+    if exclude_last > 0:
+        log_df_plot = log_df.iloc[:-exclude_last].copy()
+    else:
+        log_df_plot = log_df.copy()
+    
+    pos_figs = []
+    vel_figs = []
+    vdot_figs = []
+    
+    directions = ['x', 'y', 'z']
+    labels = ['东向', '北向', '天向']
+    
+    # 绘制位置图
+    for dir, label in zip(directions, labels):
+        pos_col = f'dynamic_pos_{dir}'
+        if pos_col in log_df_plot.columns:
+            fig = go.Figure()
+            valid_mask = pd.notna(log_df_plot[pos_col])
+            if valid_mask.any():
+                fig.add_trace(go.Scatter(
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, pos_col],
+                    name=f'位置{label}',
+                    mode='lines',
+                    line=dict(color='#2E86AB', width=2)
+                ))
+            fig = apply_scientific_style(
+                fig,
+                title=f'动力学模型位置{label}时间序列',
+                xlabel='时间 (s)',
+                ylabel=f'位置{label} (m)'
+            )
+            pos_figs.append(fig)
+        else:
+            fig = go.Figure()
+            fig.add_annotation(text=f"数据列 {pos_col} 不存在", 
+                             xref="paper", yref="paper", x=0.5, y=0.5, 
+                             showarrow=False)
+            pos_figs.append(fig)
+    
+    # 绘制速度图
+    for dir, label in zip(directions, labels):
+        vel_col = f'dynamic_vel_{dir}'
+        if vel_col in log_df_plot.columns:
+            fig = go.Figure()
+            valid_mask = pd.notna(log_df_plot[vel_col])
+            if valid_mask.any():
+                fig.add_trace(go.Scatter(
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, vel_col],
+                    name=f'速度{label}',
+                    mode='lines',
+                    line=dict(color='#06A77D', width=2)
+                ))
+            fig = apply_scientific_style(
+                fig,
+                title=f'动力学模型速度{label}时间序列',
+                xlabel='时间 (s)',
+                ylabel=f'速度{label} (m/s)'
+            )
+            vel_figs.append(fig)
+        else:
+            fig = go.Figure()
+            fig.add_annotation(text=f"数据列 {vel_col} 不存在", 
+                             xref="paper", yref="paper", x=0.5, y=0.5, 
+                             showarrow=False)
+            vel_figs.append(fig)
+    
+    # 绘制加速度图
+    for dir, label in zip(directions, labels):
+        vdot_col = f'dynamic_vdot_{dir}'
+        if vdot_col in log_df_plot.columns:
+            fig = go.Figure()
+            valid_mask = pd.notna(log_df_plot[vdot_col])
+            if valid_mask.any():
+                fig.add_trace(go.Scatter(
+                    x=log_df_plot.loc[valid_mask, time_col],
+                    y=log_df_plot.loc[valid_mask, vdot_col],
+                    name=f'加速度{label}',
+                    mode='lines',
+                    line=dict(color='#F24236', width=2)
+                ))
+            fig = apply_scientific_style(
+                fig,
+                title=f'动力学模型加速度{label}时间序列',
+                xlabel='时间 (s)',
+                ylabel=f'加速度{label} (m/s²)'
+            )
+            vdot_figs.append(fig)
+        else:
+            fig = go.Figure()
+            fig.add_annotation(text=f"数据列 {vdot_col} 不存在", 
+                             xref="paper", yref="paper", x=0.5, y=0.5, 
+                             showarrow=False)
+            vdot_figs.append(fig)
+    
+    return pos_figs, vel_figs, vdot_figs
+
+
 def plot_aerodynamic_force(log_df, run_name: str):
     """
     绘制气动力时间序列对比图
@@ -901,12 +1363,12 @@ def plot_aerodynamic_force(log_df, run_name: str):
     2. neural_f_total vs real_fa_total（X、Y、Z三个方向）
     """
     if log_df is None or log_df.empty:
-        return [], []
+        return [], [], []
     
     time_col = 'time'
     if time_col not in log_df.columns:
         st.warning("日志文件中没有找到时间列")
-        return [], []
+        return [], [], []
     
     # 排除最后几个数据点（与main.py保持一致）
     exclude_last = min(5, len(log_df) - 1)
@@ -2390,6 +2852,457 @@ def main():
                                 st.plotly_chart(fa_total_figs[2], use_container_width=True)
                             else:
                                 st.warning("无法生成Z方向总力对比图")
+                    
+                    # 绘制新息、修正值和R矩阵时间序列图
+                    innovation_figs, correction_figs, r_figs = plot_innovation_and_r(log_df, selected_run)
+                    
+                    if innovation_figs or correction_figs or r_figs:
+                        st.markdown("---")
+                        st.markdown("#### 📊 新息、修正值与自适应R矩阵")
+                        
+                        # 新息图
+                        st.markdown("##### 新息时间序列")
+                        tab_innovation_x, tab_innovation_y, tab_innovation_z = st.tabs(["东向", "北向", "天向"])
+                        
+                        with tab_innovation_x:
+                            if len(innovation_figs) > 0:
+                                st.plotly_chart(innovation_figs[0], use_container_width=True)
+                            else:
+                                st.warning("无法生成东向新息图")
+                        
+                        with tab_innovation_y:
+                            if len(innovation_figs) > 1:
+                                st.plotly_chart(innovation_figs[1], use_container_width=True)
+                            else:
+                                st.warning("无法生成北向新息图")
+                        
+                        with tab_innovation_z:
+                            if len(innovation_figs) > 2:
+                                st.plotly_chart(innovation_figs[2], use_container_width=True)
+                            else:
+                                st.warning("无法生成天向新息图")
+                        
+                        # 修正值图（K * innovation）
+                        st.markdown("##### 修正值时间序列（K × 新息）")
+                        st.caption("修正值表示动力学模型观测带来的位置修正作用")
+                        
+                        # 添加对比选项
+                        enable_comparison = st.checkbox("启用多实验对比", value=False, key="correction_comparison")
+                        
+                        if enable_comparison:
+                            # 多实验对比模式
+                            # 获取所有可用的实验（排除当前选中的实验）
+                            all_runs = df['run_name'].unique() if 'run_name' in df.columns else df.index.tolist()
+                            other_runs = [r for r in all_runs if r != selected_run]
+                            
+                            if other_runs:
+                                # 多选框选择要对比的实验
+                                comparison_runs = st.multiselect(
+                                    "选择要对比的实验（可多选）",
+                                    options=other_runs,
+                                    default=[],
+                                    key="correction_comparison_runs"
+                                )
+                                
+                                if comparison_runs:
+                                    # 加载所有选中实验的日志文件
+                                    log_dfs_dict = {}
+                                    run_names_dict = {}
+                                    
+                                    # 添加当前实验
+                                    # 尝试从参数中获取更清晰的标识
+                                    param_str = selected_row.get('param_combination_str', None)
+                                    if param_str:
+                                        current_label = f"{selected_run} ({param_str})"
+                                    else:
+                                        current_label = selected_run
+                                    log_dfs_dict['current'] = log_df
+                                    run_names_dict['current'] = current_label
+                                    
+                                    # 添加对比实验
+                                    for comp_run in comparison_runs:
+                                        comp_row = df[df['run_name'] == comp_run].iloc[0] if 'run_name' in df.columns else df.iloc[comp_run]
+                                        comp_log_file = comp_row.get('log_file', None)
+                                        comp_task_batch = comp_row.get('param_task_batch_folder', None)
+                                        
+                                        if comp_log_file and pd.notna(comp_log_file):
+                                            comp_log_file = str(comp_log_file)
+                                            if comp_task_batch is not None and pd.notna(comp_task_batch):
+                                                comp_task_batch = str(comp_task_batch)
+                                            else:
+                                                comp_task_batch = None
+                                            
+                                            comp_log_df = load_log_file(comp_log_file, project_root, comp_task_batch)
+                                            if comp_log_df is not None and not comp_log_df.empty:
+                                                # 尝试从参数中获取更清晰的标识
+                                                comp_param_str = comp_row.get('param_combination_str', None)
+                                                if comp_param_str:
+                                                    comp_label = f"{comp_run} ({comp_param_str})"
+                                                else:
+                                                    comp_label = comp_run
+                                                log_dfs_dict[comp_run] = comp_log_df
+                                                run_names_dict[comp_run] = comp_label
+                                    
+                                    # 绘制对比图
+                                    comparison_figs = plot_correction_comparison(log_dfs_dict, run_names_dict)
+                                    
+                                    if comparison_figs:
+                                        tab_correction_x, tab_correction_y, tab_correction_z = st.tabs(["东向", "北向", "天向"])
+                                        
+                                        with tab_correction_x:
+                                            if len(comparison_figs) > 0:
+                                                st.plotly_chart(comparison_figs[0], use_container_width=True)
+                                            else:
+                                                st.warning("无法生成东向修正值对比图")
+                                        
+                                        with tab_correction_y:
+                                            if len(comparison_figs) > 1:
+                                                st.plotly_chart(comparison_figs[1], use_container_width=True)
+                                            else:
+                                                st.warning("无法生成北向修正值对比图")
+                                        
+                                        with tab_correction_z:
+                                            if len(comparison_figs) > 2:
+                                                st.plotly_chart(comparison_figs[2], use_container_width=True)
+                                            else:
+                                                st.warning("无法生成天向修正值对比图")
+                                    else:
+                                        st.warning("无法生成修正值对比图")
+                                else:
+                                    # 如果没有选择对比实验，显示单个实验的图
+                                    tab_correction_x, tab_correction_y, tab_correction_z = st.tabs(["东向", "北向", "天向"])
+                                    
+                                    with tab_correction_x:
+                                        if len(correction_figs) > 0:
+                                            st.plotly_chart(correction_figs[0], use_container_width=True)
+                                        else:
+                                            st.warning("无法生成东向修正值图")
+                                    
+                                    with tab_correction_y:
+                                        if len(correction_figs) > 1:
+                                            st.plotly_chart(correction_figs[1], use_container_width=True)
+                                        else:
+                                            st.warning("无法生成北向修正值图")
+                                    
+                                    with tab_correction_z:
+                                        if len(correction_figs) > 2:
+                                            st.plotly_chart(correction_figs[2], use_container_width=True)
+                                        else:
+                                            st.warning("无法生成天向修正值图")
+                            else:
+                                st.info("没有其他实验可用于对比")
+                                # 显示单个实验的图
+                                tab_correction_x, tab_correction_y, tab_correction_z = st.tabs(["东向", "北向", "天向"])
+                                
+                                with tab_correction_x:
+                                    if len(correction_figs) > 0:
+                                        st.plotly_chart(correction_figs[0], use_container_width=True)
+                                    else:
+                                        st.warning("无法生成东向修正值图")
+                                
+                                with tab_correction_y:
+                                    if len(correction_figs) > 1:
+                                        st.plotly_chart(correction_figs[1], use_container_width=True)
+                                    else:
+                                        st.warning("无法生成北向修正值图")
+                                
+                                with tab_correction_z:
+                                    if len(correction_figs) > 2:
+                                        st.plotly_chart(correction_figs[2], use_container_width=True)
+                                    else:
+                                        st.warning("无法生成天向修正值图")
+                        else:
+                            # 单实验模式（原有功能）
+                            tab_correction_x, tab_correction_y, tab_correction_z = st.tabs(["东向", "北向", "天向"])
+                            
+                            with tab_correction_x:
+                                if len(correction_figs) > 0:
+                                    st.plotly_chart(correction_figs[0], use_container_width=True)
+                                else:
+                                    st.warning("无法生成东向修正值图")
+                            
+                            with tab_correction_y:
+                                if len(correction_figs) > 1:
+                                    st.plotly_chart(correction_figs[1], use_container_width=True)
+                                else:
+                                    st.warning("无法生成北向修正值图")
+                            
+                            with tab_correction_z:
+                                if len(correction_figs) > 2:
+                                    st.plotly_chart(correction_figs[2], use_container_width=True)
+                                else:
+                                    st.warning("无法生成天向修正值图")
+                        
+                        # R矩阵图
+                        st.markdown("##### 自适应观测噪声协方差矩阵R")
+                        if r_figs:
+                            st.plotly_chart(r_figs[0], use_container_width=True)
+                            st.caption("R矩阵对角线元素随时间的变化，反映了RA-UKF自适应调整的效果")
+                        else:
+                            st.warning("无法生成R矩阵图")
+                    
+                    # 绘制动力学模型数据（位置、速度、加速度）
+                    dynamic_pos_figs, dynamic_vel_figs, dynamic_vdot_figs = plot_dynamic_data_single(log_df, selected_run)
+                    
+                    if dynamic_pos_figs or dynamic_vel_figs or dynamic_vdot_figs:
+                        st.markdown("---")
+                        st.markdown("#### 🎯 动力学模型数据")
+                        st.caption("显示动力学模型预测的位置、速度和加速度数据")
+                        
+                        # 位置数据
+                        if dynamic_pos_figs:
+                            st.markdown("##### 动力学模型位置时间序列")
+                            enable_pos_comparison = st.checkbox("启用多实验对比", value=False, key="dynamic_pos_comparison")
+                            
+                            if enable_pos_comparison:
+                                # 多实验对比模式
+                                all_runs = df['run_name'].unique() if 'run_name' in df.columns else df.index.tolist()
+                                other_runs = [r for r in all_runs if r != selected_run]
+                                
+                                if other_runs:
+                                    comparison_runs = st.multiselect(
+                                        "选择要对比的实验（可多选）",
+                                        options=other_runs,
+                                        default=[],
+                                        key="dynamic_pos_comparison_runs"
+                                    )
+                                    
+                                    if comparison_runs:
+                                        log_dfs_dict = {}
+                                        run_names_dict = {}
+                                        
+                                        # 添加当前实验
+                                        param_str = selected_row.get('param_combination_str', None)
+                                        if param_str:
+                                            current_label = f"{selected_run} ({param_str})"
+                                        else:
+                                            current_label = selected_run
+                                        log_dfs_dict['current'] = log_df
+                                        run_names_dict['current'] = current_label
+                                        
+                                        # 添加对比实验
+                                        for comp_run in comparison_runs:
+                                            comp_row = df[df['run_name'] == comp_run].iloc[0] if 'run_name' in df.columns else df.iloc[comp_run]
+                                            comp_log_file = comp_row.get('log_file', None)
+                                            comp_task_batch = comp_row.get('param_task_batch_folder', None)
+                                            
+                                            if comp_log_file and pd.notna(comp_log_file):
+                                                comp_log_file = str(comp_log_file)
+                                                if comp_task_batch is not None and pd.notna(comp_task_batch):
+                                                    comp_task_batch = str(comp_task_batch)
+                                                else:
+                                                    comp_task_batch = None
+                                                
+                                                comp_log_df = load_log_file(comp_log_file, project_root, comp_task_batch)
+                                                if comp_log_df is not None and not comp_log_df.empty:
+                                                    comp_param_str = comp_row.get('param_combination_str', None)
+                                                    if comp_param_str:
+                                                        comp_label = f"{comp_run} ({comp_param_str})"
+                                                    else:
+                                                        comp_label = comp_run
+                                                    log_dfs_dict[comp_run] = comp_log_df
+                                                    run_names_dict[comp_run] = comp_label
+                                        
+                                        # 绘制对比图
+                                        comparison_figs = plot_multi_experiment_comparison(
+                                            log_dfs_dict, run_names_dict, 
+                                            'dynamic_pos', ['东向', '北向', '天向'],
+                                            '动力学模型位置', 'm'
+                                        )
+                                        
+                                        if comparison_figs:
+                                            tab_pos_x, tab_pos_y, tab_pos_z = st.tabs(["东向", "北向", "天向"])
+                                            for tab, fig in zip([tab_pos_x, tab_pos_y, tab_pos_z], comparison_figs):
+                                                with tab:
+                                                    st.plotly_chart(fig, use_container_width=True)
+                                    else:
+                                        # 显示单实验图
+                                        tab_pos_x, tab_pos_y, tab_pos_z = st.tabs(["东向", "北向", "天向"])
+                                        for tab, fig in zip([tab_pos_x, tab_pos_y, tab_pos_z], dynamic_pos_figs):
+                                            with tab:
+                                                st.plotly_chart(fig, use_container_width=True)
+                                else:
+                                    st.info("没有其他实验可用于对比")
+                                    tab_pos_x, tab_pos_y, tab_pos_z = st.tabs(["东向", "北向", "天向"])
+                                    for tab, fig in zip([tab_pos_x, tab_pos_y, tab_pos_z], dynamic_pos_figs):
+                                        with tab:
+                                            st.plotly_chart(fig, use_container_width=True)
+                            else:
+                                # 单实验模式
+                                tab_pos_x, tab_pos_y, tab_pos_z = st.tabs(["东向", "北向", "天向"])
+                                for tab, fig in zip([tab_pos_x, tab_pos_y, tab_pos_z], dynamic_pos_figs):
+                                    with tab:
+                                        st.plotly_chart(fig, use_container_width=True)
+                        
+                        # 速度数据
+                        if dynamic_vel_figs:
+                            st.markdown("##### 动力学模型速度时间序列")
+                            enable_vel_comparison = st.checkbox("启用多实验对比", value=False, key="dynamic_vel_comparison")
+                            
+                            if enable_vel_comparison:
+                                # 多实验对比模式
+                                all_runs = df['run_name'].unique() if 'run_name' in df.columns else df.index.tolist()
+                                other_runs = [r for r in all_runs if r != selected_run]
+                                
+                                if other_runs:
+                                    comparison_runs = st.multiselect(
+                                        "选择要对比的实验（可多选）",
+                                        options=other_runs,
+                                        default=[],
+                                        key="dynamic_vel_comparison_runs"
+                                    )
+                                    
+                                    if comparison_runs:
+                                        log_dfs_dict = {}
+                                        run_names_dict = {}
+                                        
+                                        # 添加当前实验
+                                        param_str = selected_row.get('param_combination_str', None)
+                                        if param_str:
+                                            current_label = f"{selected_run} ({param_str})"
+                                        else:
+                                            current_label = selected_run
+                                        log_dfs_dict['current'] = log_df
+                                        run_names_dict['current'] = current_label
+                                        
+                                        # 添加对比实验
+                                        for comp_run in comparison_runs:
+                                            comp_row = df[df['run_name'] == comp_run].iloc[0] if 'run_name' in df.columns else df.iloc[comp_run]
+                                            comp_log_file = comp_row.get('log_file', None)
+                                            comp_task_batch = comp_row.get('param_task_batch_folder', None)
+                                            
+                                            if comp_log_file and pd.notna(comp_log_file):
+                                                comp_log_file = str(comp_log_file)
+                                                if comp_task_batch is not None and pd.notna(comp_task_batch):
+                                                    comp_task_batch = str(comp_task_batch)
+                                                else:
+                                                    comp_task_batch = None
+                                                
+                                                comp_log_df = load_log_file(comp_log_file, project_root, comp_task_batch)
+                                                if comp_log_df is not None and not comp_log_df.empty:
+                                                    comp_param_str = comp_row.get('param_combination_str', None)
+                                                    if comp_param_str:
+                                                        comp_label = f"{comp_run} ({comp_param_str})"
+                                                    else:
+                                                        comp_label = comp_run
+                                                    log_dfs_dict[comp_run] = comp_log_df
+                                                    run_names_dict[comp_run] = comp_label
+                                        
+                                        # 绘制对比图
+                                        comparison_figs = plot_multi_experiment_comparison(
+                                            log_dfs_dict, run_names_dict, 
+                                            'dynamic_vel', ['东向', '北向', '天向'],
+                                            '动力学模型速度', 'm/s'
+                                        )
+                                        
+                                        if comparison_figs:
+                                            tab_vel_x, tab_vel_y, tab_vel_z = st.tabs(["东向", "北向", "天向"])
+                                            for tab, fig in zip([tab_vel_x, tab_vel_y, tab_vel_z], comparison_figs):
+                                                with tab:
+                                                    st.plotly_chart(fig, use_container_width=True)
+                                    else:
+                                        # 显示单实验图
+                                        tab_vel_x, tab_vel_y, tab_vel_z = st.tabs(["东向", "北向", "天向"])
+                                        for tab, fig in zip([tab_vel_x, tab_vel_y, tab_vel_z], dynamic_vel_figs):
+                                            with tab:
+                                                st.plotly_chart(fig, use_container_width=True)
+                                else:
+                                    st.info("没有其他实验可用于对比")
+                                    tab_vel_x, tab_vel_y, tab_vel_z = st.tabs(["东向", "北向", "天向"])
+                                    for tab, fig in zip([tab_vel_x, tab_vel_y, tab_vel_z], dynamic_vel_figs):
+                                        with tab:
+                                            st.plotly_chart(fig, use_container_width=True)
+                            else:
+                                # 单实验模式
+                                tab_vel_x, tab_vel_y, tab_vel_z = st.tabs(["东向", "北向", "天向"])
+                                for tab, fig in zip([tab_vel_x, tab_vel_y, tab_vel_z], dynamic_vel_figs):
+                                    with tab:
+                                        st.plotly_chart(fig, use_container_width=True)
+                        
+                        # 加速度数据
+                        if dynamic_vdot_figs:
+                            st.markdown("##### 动力学模型加速度时间序列")
+                            enable_vdot_comparison = st.checkbox("启用多实验对比", value=False, key="dynamic_vdot_comparison")
+                            
+                            if enable_vdot_comparison:
+                                # 多实验对比模式
+                                all_runs = df['run_name'].unique() if 'run_name' in df.columns else df.index.tolist()
+                                other_runs = [r for r in all_runs if r != selected_run]
+                                
+                                if other_runs:
+                                    comparison_runs = st.multiselect(
+                                        "选择要对比的实验（可多选）",
+                                        options=other_runs,
+                                        default=[],
+                                        key="dynamic_vdot_comparison_runs"
+                                    )
+                                    
+                                    if comparison_runs:
+                                        log_dfs_dict = {}
+                                        run_names_dict = {}
+                                        
+                                        # 添加当前实验
+                                        param_str = selected_row.get('param_combination_str', None)
+                                        if param_str:
+                                            current_label = f"{selected_run} ({param_str})"
+                                        else:
+                                            current_label = selected_run
+                                        log_dfs_dict['current'] = log_df
+                                        run_names_dict['current'] = current_label
+                                        
+                                        # 添加对比实验
+                                        for comp_run in comparison_runs:
+                                            comp_row = df[df['run_name'] == comp_run].iloc[0] if 'run_name' in df.columns else df.iloc[comp_run]
+                                            comp_log_file = comp_row.get('log_file', None)
+                                            comp_task_batch = comp_row.get('param_task_batch_folder', None)
+                                            
+                                            if comp_log_file and pd.notna(comp_log_file):
+                                                comp_log_file = str(comp_log_file)
+                                                if comp_task_batch is not None and pd.notna(comp_task_batch):
+                                                    comp_task_batch = str(comp_task_batch)
+                                                else:
+                                                    comp_task_batch = None
+                                                
+                                                comp_log_df = load_log_file(comp_log_file, project_root, comp_task_batch)
+                                                if comp_log_df is not None and not comp_log_df.empty:
+                                                    comp_param_str = comp_row.get('param_combination_str', None)
+                                                    if comp_param_str:
+                                                        comp_label = f"{comp_run} ({comp_param_str})"
+                                                    else:
+                                                        comp_label = comp_run
+                                                    log_dfs_dict[comp_run] = comp_log_df
+                                                    run_names_dict[comp_run] = comp_label
+                                        
+                                        # 绘制对比图
+                                        comparison_figs = plot_multi_experiment_comparison(
+                                            log_dfs_dict, run_names_dict, 
+                                            'dynamic_vdot', ['东向', '北向', '天向'],
+                                            '动力学模型加速度', 'm/s²'
+                                        )
+                                        
+                                        if comparison_figs:
+                                            tab_vdot_x, tab_vdot_y, tab_vdot_z = st.tabs(["东向", "北向", "天向"])
+                                            for tab, fig in zip([tab_vdot_x, tab_vdot_y, tab_vdot_z], comparison_figs):
+                                                with tab:
+                                                    st.plotly_chart(fig, use_container_width=True)
+                                    else:
+                                        # 显示单实验图
+                                        tab_vdot_x, tab_vdot_y, tab_vdot_z = st.tabs(["东向", "北向", "天向"])
+                                        for tab, fig in zip([tab_vdot_x, tab_vdot_y, tab_vdot_z], dynamic_vdot_figs):
+                                            with tab:
+                                                st.plotly_chart(fig, use_container_width=True)
+                                else:
+                                    st.info("没有其他实验可用于对比")
+                                    tab_vdot_x, tab_vdot_y, tab_vdot_z = st.tabs(["东向", "北向", "天向"])
+                                    for tab, fig in zip([tab_vdot_x, tab_vdot_y, tab_vdot_z], dynamic_vdot_figs):
+                                        with tab:
+                                            st.plotly_chart(fig, use_container_width=True)
+                            else:
+                                # 单实验模式
+                                tab_vdot_x, tab_vdot_y, tab_vdot_z = st.tabs(["东向", "北向", "天向"])
+                                for tab, fig in zip([tab_vdot_x, tab_vdot_y, tab_vdot_z], dynamic_vdot_figs):
+                                    with tab:
+                                        st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.warning(f"无法加载日志文件: {log_file_name}")
                     st.info("提示：请确保日志文件在 navigation_logs 目录或对应的大任务文件夹中")

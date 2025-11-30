@@ -10,6 +10,7 @@ import matlab.engine
 import traceback
 from datetime import datetime
 from scipy.interpolate import interp1d
+from scipy.stats import chi2
 
 import utils
 import mlmodel
@@ -21,6 +22,118 @@ from mlflow_utils import (
     log_model_file
 )
 import mlflow
+
+
+def adaptive_r_update_raukf(eng, matlab_kf, ins_pred_pos_xyz, dynamic_pos_xyz, 
+                             initial_R_diag, alpha=0.9, chi2_percentile=0.95):
+    """
+    RA-UKF自适应R矩阵调整函数
+    
+    基于新息统计（NIS）和能量项进行条件触发的R矩阵自适应调整
+    
+    参数:
+        eng: MATLAB引擎
+        matlab_kf: MATLAB UKF滤波器对象
+        ins_pred_pos_xyz: INS预测位置（XYZ坐标，3x1数组）
+        dynamic_pos_xyz: 动力学模型预测的位置（观测值，3x1数组）
+        initial_R_diag: 初始R矩阵的对角线元素（用于限制调整范围）
+        alpha: 加权融合的权重（默认0.9）
+        chi2_percentile: 卡方分布的分位数（默认0.95，即95%）
+    
+    返回:
+        updated_R: 更新后的R矩阵（numpy数组）
+    """
+    try:
+        # 1. 计算新息（innovation）
+        innovation = ins_pred_pos_xyz - dynamic_pos_xyz
+        innovation = innovation.reshape((3, 1))  # 列向量
+        
+        # 2. 获取当前的P矩阵和R矩阵
+        try:
+            P = np.array(eng.getfield(matlab_kf, 'Pxk'))
+            R_old = np.array(eng.getfield(matlab_kf, 'Rk'))
+        except:
+            # 如果获取失败，返回原始R
+            return np.array(eng.getfield(matlab_kf, 'Rk')) if 'R_old' not in locals() else np.diag(initial_R_diag)
+        
+        # 3. 计算新息协方差矩阵 S = H*P*H^T + R
+        # H是3x3单位矩阵（位置观测）
+        H = np.eye(3)
+        
+        # 提取位置相关的P矩阵子块（假设状态向量中位置在最后3个元素）
+        # 需要根据实际UKF状态向量结构调整索引
+        # 对于15状态UKF，位置通常在索引12-14（0-based）
+        n_state = P.shape[0]
+        if n_state >= 15:
+            # 15状态UKF：位置在索引12-14
+            pos_indices = slice(12, 15)
+        elif n_state >= 9:
+            # 9状态UKF：位置在索引6-8
+            pos_indices = slice(6, 9)
+        else:
+            # 默认假设位置在最后3个元素
+            pos_indices = slice(-3, None)
+        
+        P_pos = P[pos_indices, :][:, pos_indices]  # 位置相关的协方差子块
+        
+        # 计算新息协方差（使用更新前的R，因为这是理论值）
+        S = H @ P_pos @ H.T + R_old
+        
+        # 4. 计算归一化新息平方（NIS）
+        try:
+            S_inv = np.linalg.inv(S)
+            NIS = (innovation.T @ S_inv @ innovation)[0, 0]
+        except:
+            # 如果S不可逆，返回原始R
+            return R_old
+        
+        # 5. 计算卡方分布阈值（3维，95%分位数）
+        chi2_threshold = chi2.ppf(chi2_percentile, df=3)  # 约7.815
+        
+        # 6. 基于新息能量计算自适应R
+        # R_adaptive = innovation * innovation^T - H*P*H^T
+        innovation_outer = innovation @ innovation.T
+        R_adaptive = innovation_outer - H @ P_pos @ H.T
+        
+        # 确保R_adaptive是正定的（只保留对角线元素，并确保为正）
+        R_adaptive_diag = np.diag(R_adaptive)
+        R_adaptive_diag = np.maximum(R_adaptive_diag, initial_R_diag * 0.1)  # 设置下限
+        
+        # 7. 根据NIS统计检验结果调整R
+        if NIS > chi2_threshold:
+            # NIS超过阈值：观测噪声被低估，需要增大R
+            # 增大比例基于NIS与阈值的比值
+            scale_factor = 1.0 + 0.1 * (NIS / chi2_threshold - 1.0)  # 自适应增大
+            R_adaptive_diag = R_adaptive_diag * scale_factor
+        elif NIS < chi2_threshold * 0.5:
+            # NIS远低于阈值：观测噪声可能被高估，可以适当减小R
+            scale_factor = 0.95  # 小幅减小
+            R_adaptive_diag = R_adaptive_diag * scale_factor
+        
+        # 限制R_adaptive_diag的范围（不能小于初始值的10%，不能大于初始值的10倍）
+        R_adaptive_diag = np.clip(R_adaptive_diag, 
+                                  initial_R_diag * 0.001, 
+                                  initial_R_diag * 1000.0)
+        
+        # 8. 加权融合：R_new = alpha * R_old + (1-alpha) * R_adaptive
+        R_old_diag = np.diag(R_old)
+        R_new_diag = alpha * R_old_diag + (1 - alpha) * R_adaptive_diag
+        
+        # 9. 构建新的R矩阵（对角矩阵）
+        R_new = np.diag(R_new_diag)
+        
+        # 10. 将更新后的R设置回MATLAB的kf对象
+        eng.setfield(matlab_kf, 'Rk', matlab.double(R_new.tolist()), nargout=0)
+        
+        return R_new
+        
+    except Exception as e:
+        # 如果出现任何错误，返回原始R或初始R
+        print(f"自适应R调整出错: {e}")
+        try:
+            return np.array(eng.getfield(matlab_kf, 'Rk'))
+        except:
+            return np.diag(initial_R_diag)
 
 
 def run_single_experiment(csv_filename, project_root, filter_config, eng, 
@@ -203,6 +316,9 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
             ukf_Rk = None
             ukf_Pxk = None
         
+        # 保存初始R矩阵的对角线元素（用于自适应调整时的范围限制）
+        initial_R_diag = np.diag(ukf_Rk) if ukf_Rk is not None else np.array(pos_err) ** 2
+        
         # 打印UKF的Rk和Qk值（用于调试和验证）
         print(f"\n  ========== UKF参数值 ==========")
         if ukf_Rk is not None:
@@ -303,6 +419,12 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
             'ins_pred_att_x', 'ins_pred_att_y', 'ins_pred_att_z',
             'ins_pred_vx', 'ins_pred_vy', 'ins_pred_vz',
             'obs_residual_x', 'obs_residual_y', 'obs_residual_z',
+            'innovation_x', 'innovation_y', 'innovation_z',
+            'Kk_pos_00', 'Kk_pos_01', 'Kk_pos_02',
+            'Kk_pos_10', 'Kk_pos_11', 'Kk_pos_12',
+            'Kk_pos_20', 'Kk_pos_21', 'Kk_pos_22',
+            'correction_x', 'correction_y', 'correction_z',  # K * innovation，动力学模型观测带来的修正
+            'R_adaptive_00', 'R_adaptive_11', 'R_adaptive_22',
             'ukf_fused_att_x', 'ukf_fused_att_y', 'ukf_fused_att_z',
             'ukf_fused_vx', 'ukf_fused_vy', 'ukf_fused_vz',
             'ukf_fused_px', 'ukf_fused_py', 'ukf_fused_pz',
@@ -323,6 +445,9 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
         
         # 主循环（与原代码相同）
         # 循环范围：从adapt_end_index开始，执行loops次（根据imu数组长度自适应确定）
+        # 初始化R_adaptive_diag为初始值（用于第一次循环的日志记录）
+        R_adaptive_diag = initial_R_diag.copy()
+        
         for loop_index in range(first_index, first_index + loops):
             # 动力学取数据
             # 添加边界检查，确保不会越界
@@ -419,6 +544,56 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
             
             obs_residual_xyz = ins_pred_pos_xyz - dynamic_pos_xyz
             
+            # 计算新息（innovation），用于日志记录
+            innovation_xyz = obs_residual_xyz.copy()  # 新息就是观测残差
+            
+            # 获取卡尔曼增益Kk（从MATLAB的kf对象中）
+            try:
+                Kk = np.array(eng.getfield(matlab_kf, 'Kk'))
+                # 提取位置相关的Kk子块（对于15状态UKF，位置在索引12-14）
+                # Kk是n_state x 3的矩阵，最后3行对应位置状态
+                n_state = Kk.shape[0]
+                if n_state >= 15:
+                    # 15状态UKF：位置在索引12-14
+                    pos_indices = slice(12, 15)
+                elif n_state >= 9:
+                    # 9状态UKF：位置在索引6-8
+                    pos_indices = slice(6, 9)
+                else:
+                    # 默认假设位置在最后3个元素
+                    pos_indices = slice(-3, None)
+                
+                Kk_pos = Kk[pos_indices, :]  # 位置相关的Kk子块（3x3）
+            except Exception as e:
+                # 如果获取失败，使用零矩阵
+                print(f"获取卡尔曼增益失败: {e}")
+                Kk_pos = np.zeros((3, 3))
+            
+            # 计算修正值：K * innovation（动力学模型观测带来的修正）
+            # innovation_xyz是行向量，需要转换为列向量进行计算
+            innovation_col = innovation_xyz.reshape((3, 1))  # 转换为列向量
+            correction_col = Kk_pos @ innovation_col  # K * innovation（3x1列向量）
+            correction_xyz = correction_col.flatten()  # 转换回行向量，用于日志记录
+            
+            # RA-UKF自适应R矩阵调整（在UKF更新之后，用于下一时刻）
+            # 基于当前时刻的新息调整R矩阵，用于下一时刻的UKF更新
+            try:
+                updated_R = adaptive_r_update_raukf(
+                    eng, matlab_kf, ins_pred_pos_xyz, dynamic_pos_xyz,
+                    initial_R_diag, alpha=0.9, chi2_percentile=0.95
+                )
+                # 保存更新后的R矩阵对角线元素，用于日志记录
+                R_adaptive_diag = np.diag(updated_R)
+            except Exception as e:
+                # 如果自适应调整失败，获取当前的R矩阵
+                print(f"自适应R调整失败，使用原始R: {e}")
+                try:
+                    current_R = np.array(eng.getfield(matlab_kf, 'Rk'))
+                    R_adaptive_diag = np.diag(current_R)
+                except:
+                    # 如果获取失败，使用初始R
+                    R_adaptive_diag = initial_R_diag.copy()
+            
             # UKF融合结果
             matlab_ukf_avp_xyz = eng.llh2xyz_subfun(matlab_avp)
             ukf_fused_avp_xyz = np.array(matlab_ukf_avp_xyz).flatten()
@@ -499,6 +674,12 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
                 ins_pred_att_xyz[0], ins_pred_att_xyz[1], ins_pred_att_xyz[2],
                 ins_pred_vel_xyz[0], ins_pred_vel_xyz[1], ins_pred_vel_xyz[2],
                 obs_residual_xyz[0], obs_residual_xyz[1], obs_residual_xyz[2],
+                innovation_xyz[0], innovation_xyz[1], innovation_xyz[2],
+                Kk_pos[0, 0], Kk_pos[0, 1], Kk_pos[0, 2],
+                Kk_pos[1, 0], Kk_pos[1, 1], Kk_pos[1, 2],
+                Kk_pos[2, 0], Kk_pos[2, 1], Kk_pos[2, 2],
+                correction_xyz[0], correction_xyz[1], correction_xyz[2],
+                R_adaptive_diag[0], R_adaptive_diag[1], R_adaptive_diag[2],
                 ukf_fused_att_xyz[0], ukf_fused_att_xyz[1], ukf_fused_att_xyz[2],
                 ukf_fused_vel_xyz[0], ukf_fused_vel_xyz[1], ukf_fused_vel_xyz[2],
                 ukf_fused_pos_xyz[0], ukf_fused_pos_xyz[1], ukf_fused_pos_xyz[2],

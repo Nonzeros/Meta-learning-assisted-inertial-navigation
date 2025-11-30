@@ -1,13 +1,34 @@
 # 参数扫描配置文件
 # 用于定义要测试的滤波器参数组合
 
+# CSV文件处理配置
+# 控制是否执行全部CSV文件，还是只执行一个CSV文件
+# 用途：在验证某个参数影响时，可以只运行一个CSV文件，而不需要运行所有CSV文件
+csv_files_config:
+  # 是否执行全部CSV文件
+  # true: 执行所有CSV文件（默认行为，适合完整测试）
+  # false: 只执行指定的一个CSV文件（适合快速验证单个参数）
+  run_all_csv_files: false
+  
+  # 当run_all_csv_files为false时，指定要执行的CSV文件
+  # 可以是：
+  # 1. 文件名（字符串，如 'custom_figure8_baseline_nowind.csv'）
+  # 2. 索引（整数，从0开始，如 0 表示第一个文件，4 表示最后一个文件）
+  # 如果未指定（null），默认使用第一个CSV文件
+  # 
+  # 示例：
+  single_csv_file: 'custom_figure8_baseline_100wind.csv'  # 使用文件名
+  # single_csv_file: 0  # 使用索引（第一个文件）
+  # single_csv_file: 4  # 使用索引（最后一个文件）
+  # single_csv_file: null  # 当前设置为null，当run_all_csv_files=false时使用第一个文件
+
 # 参数扫描模式
 # 支持的模式：
 # - "auto": 自动扫描模式，自动测试卡尔曼滤波和粒子滤波，以及所有相关参数
 # - "single": 单参数扫描，一次只改变一个参数，其他参数保持不变
 # - "grid": 网格搜索，测试所有参数组合
 # - "list": 列表模式，测试指定的参数组合
-scan_mode: "grid"  # "auto", "single", "grid", 或 "list"
+scan_mode: "single"  # "auto", "single", "grid", 或 "list"
 
 # 自动扫描配置（当scan_mode="auto"时使用）
 # 自动测试卡尔曼滤波和粒子滤波，以及所有相关参数
@@ -54,7 +75,7 @@ single_param_scan:
   # - "matlab_ukf.dpos": MATLAB UKF位置误差
   # param_name: "numPar"  # 要扫描的参数：粒子滤波的粒子数量
   # param_name: "lambda1" 
-  param_name: "numPar"  # 要扫描的参数：MATLAB UKF位置误差（用于设置Rk矩阵）
+  param_name: "lambda1"  # 要扫描的参数：MATLAB UKF位置误差（用于设置Rk矩阵）
   
   # 参数值列表
   # 测试不同的pos_err值（位置误差，单位：米）
@@ -78,7 +99,8 @@ single_param_scan:
   #   - [0.1, 0.1, 0.1]
   #   - [0.2, 0.2, 0.2]
   #   - [0.5, 0.5, 0.5]
-  param_values: [1,10,30,50,100,500,1000]
+  # param_values: [1,10,30,50,100,500,1000]
+  param_values: [0, 0.1, 0.3, 0.6, 0.9,1.2]
 
 # 粒子滤波参数扫描（当filter.type=2时使用）
 particle_filter_scan:

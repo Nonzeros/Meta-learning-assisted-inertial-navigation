@@ -57,14 +57,55 @@ else:
 #测试集
 from experiment_runner import run_single_experiment
 
-# 要处理的CSV文件列表
-csv_files_to_process = [
+# 要处理的CSV文件列表（完整列表）
+all_csv_files = [
     'custom_figure8_baseline_35wind.csv',
     'custom_figure8_baseline_70p20sint.csv',
     'custom_figure8_baseline_70wind.csv',
     'custom_figure8_baseline_100wind.csv',
     'custom_figure8_baseline_nowind.csv'
 ]
+
+# 根据配置文件决定处理哪些CSV文件
+if enable_param_scan:
+    csv_config = scan_config.get('csv_files_config', {})
+    run_all_csv_files = csv_config.get('run_all_csv_files', True)
+    
+    if run_all_csv_files:
+        # 执行全部CSV文件
+        csv_files_to_process = all_csv_files.copy()
+        print(f"配置：执行全部CSV文件（共 {len(csv_files_to_process)} 个）")
+    else:
+        # 只执行指定的一个CSV文件
+        single_csv_file = csv_config.get('single_csv_file', None)
+        
+        if single_csv_file is None:
+            # 如果未指定，默认使用第一个文件
+            csv_files_to_process = [all_csv_files[0]]
+            print(f"配置：只执行一个CSV文件（未指定，使用第一个）: {csv_files_to_process[0]}")
+        elif isinstance(single_csv_file, int):
+            # 如果是索引
+            if 0 <= single_csv_file < len(all_csv_files):
+                csv_files_to_process = [all_csv_files[single_csv_file]]
+                print(f"配置：只执行一个CSV文件（索引 {single_csv_file}）: {csv_files_to_process[0]}")
+            else:
+                print(f"警告：CSV文件索引 {single_csv_file} 超出范围，使用第一个文件")
+                csv_files_to_process = [all_csv_files[0]]
+        elif isinstance(single_csv_file, str):
+            # 如果是文件名
+            if single_csv_file in all_csv_files:
+                csv_files_to_process = [single_csv_file]
+                print(f"配置：只执行一个CSV文件（文件名）: {csv_files_to_process[0]}")
+            else:
+                print(f"警告：CSV文件 '{single_csv_file}' 不在列表中，使用第一个文件")
+                csv_files_to_process = [all_csv_files[0]]
+        else:
+            print(f"警告：single_csv_file 配置格式不正确，使用第一个文件")
+            csv_files_to_process = [all_csv_files[0]]
+else:
+    # 如果没有参数扫描配置，执行全部CSV文件（默认行为）
+    csv_files_to_process = all_csv_files.copy()
+    print(f"未启用参数扫描，执行全部CSV文件（共 {len(csv_files_to_process)} 个）")
 
 adapt_end_index = 100 # 适应部分下标(不包括)
 
