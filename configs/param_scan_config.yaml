@@ -8,7 +8,7 @@ csv_files_config:
   # 是否执行全部CSV文件
   # true: 执行所有CSV文件（默认行为，适合完整测试）
   # false: 只执行指定的一个CSV文件（适合快速验证单个参数）
-  run_all_csv_files: false
+  run_all_csv_files: true
   
   # 当run_all_csv_files为false时，指定要执行的CSV文件
   # 可以是：
@@ -28,7 +28,7 @@ csv_files_config:
 # - "single": 单参数扫描，一次只改变一个参数，其他参数保持不变
 # - "grid": 网格搜索，测试所有参数组合
 # - "list": 列表模式，测试指定的参数组合
-scan_mode: "single"  # "auto", "single", "grid", 或 "list"
+scan_mode: "grid"  # "auto", "single", "grid", 或 "list"
 
 # 自动扫描配置（当scan_mode="auto"时使用）
 # 自动测试卡尔曼滤波和粒子滤波，以及所有相关参数
@@ -45,8 +45,8 @@ auto_scan:
   
   # 粒子滤波参数扫描范围
   particle_filter_params:
-    lambda1_values: [0, 0.1, 0.2]  # 阻尼系数（3个值）
-    numPar_values: [20, 30, 50]  # 粒子数量（3个值）
+    lambda1_values: [0, 0.1, 0.2,0.3]  # 阻尼系数（3个值）
+    numPar_values: [20, 50, 100]  # 粒子数量（3个值）
     R_values: [0.05, 0.1, 0.2]  # 观测噪声协方差（3个值）
     q0_values: [0.05, 0.1, 0.2]  # 过程噪声标准差（3个值）
     # 总共：3 × 3 × 3 × 3 = 81个PF组合，每个组合运行5个文件 = 405个任务
