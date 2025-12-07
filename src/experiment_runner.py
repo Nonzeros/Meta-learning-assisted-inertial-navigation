@@ -24,6 +24,143 @@ from mlflow_utils import (
 import mlflow
 
 
+def adaptive_r_update_zheng_raukf(eng, matlab_kf, matlab_avp, ins_pred_pos_xyz, dynamic_pos_xyz,
+                                   initial_R_diag, chi_sq_threshold=None, tune0=0.1, a=5):
+    """
+    基于Zheng et al. (2018)文献的RA-UKF自适应R矩阵调整函数
+    
+    文献: "A Robust Adaptive Unscented Kalman Filter for Nonlinear Estimation 
+          with Uncertain Noise Covariance" (DOI:10.3390/s18030808)
+    
+    该方法使用residual-based方法计算测量噪声协方差：
+    - 首先计算psi统计量进行故障检测（基于innovation）
+    - 如果psi超过阈值，计算自适应权重lambda (tune)
+    - 使用residual（观测值 - 更新后的预测值）和S矩阵更新R
+    - R = (1-lambda) * R + lambda * (residual * residual.T + S)
+    
+    参数:
+        eng: MATLAB引擎
+        matlab_kf: MATLAB UKF滤波器对象（更新后）
+        matlab_avp: MATLAB UKF更新后的AVP状态（用于计算更新后的预测位置）
+        ins_pred_pos_xyz: INS预测位置（更新前，用于计算innovation，XYZ坐标，3x1数组）
+        dynamic_pos_xyz: 动力学模型预测的位置（观测值，3x1数组）
+        initial_R_diag: 初始R矩阵的对角线元素（用于限制调整范围）
+        chi_sq_threshold: 卡方分布阈值（默认根据3维95%分位数计算，约7.815）
+        tune0: 自适应权重的基础值（默认0.1）
+        a: 自适应权重的调整参数（默认5）
+    
+    返回:
+        updated_R: 更新后的R矩阵（numpy数组）
+        adapted: 是否进行了自适应调整（布尔值）
+    """
+    try:
+        # 1. 获取更新后的P矩阵和R矩阵（UKF更新后）
+        try:
+            P_updated = np.array(eng.getfield(matlab_kf, 'Pxk'))
+            R_old = np.array(eng.getfield(matlab_kf, 'Rk'))
+        except Exception as e:
+            print(f"获取P或R矩阵失败: {e}")
+            return np.diag(initial_R_diag), False
+        
+        # 2. 从更新后的状态中提取位置（用于计算residual）
+        # matlab_avp是LLH格式，需要转换为XYZ
+        matlab_ukf_avp_xyz = eng.llh2xyz_subfun(matlab_avp)
+        ukf_fused_avp_xyz = np.array(matlab_ukf_avp_xyz).flatten()
+        updated_pred_pos_xyz = ukf_fused_avp_xyz[6:9]  # 提取位置部分
+        
+        # 3. 计算residual（观测值 - 更新后的预测值）
+        # 这是文献中的关键：residual = x - h(x_updated)
+        residual = dynamic_pos_xyz - updated_pred_pos_xyz
+        residual = residual.reshape((3, 1))  # 列向量
+        
+        # 4. 计算innovation（用于故障检测）
+        # innovation = 观测值 - 更新前的预测值
+        innovation = dynamic_pos_xyz - ins_pred_pos_xyz
+        innovation = innovation.reshape((3, 1))  # 列向量
+        
+        # 5. 提取位置相关的P矩阵子块
+        H = np.eye(3)  # 位置观测矩阵（3x3单位矩阵）
+        n_state = P_updated.shape[0]
+        if n_state >= 15:
+            # 15状态UKF：位置在索引12-14
+            pos_indices = slice(12, 15)
+        elif n_state >= 9:
+            # 9状态UKF：位置在索引6-8
+            pos_indices = slice(6, 9)
+        else:
+            # 默认假设位置在最后3个元素
+            pos_indices = slice(-3, None)
+        
+        P_pos_updated = P_updated[pos_indices, :][:, pos_indices]  # 位置相关的协方差子块（更新后）
+        
+        # 6. 计算S矩阵（从更新后的状态计算的预测协方差，不包含R）
+        # 在文献中，S是从更新后的sigma点计算的，这里我们使用更新后的P矩阵近似
+        # S = H * P_updated_pos * H^T（不包含R）
+        S = H @ P_pos_updated @ H.T
+        
+        # 7. 计算新息协方差矩阵 S_pred = H*P*H^T + R（用于计算psi）
+        # 注意：为了准确计算psi，应该使用更新前的P和R
+        # 但由于我们已经更新了，我们使用更新后的P和R作为近似
+        # 或者，可以从MATLAB获取更新前的P（如果保存了）
+        # 为了简化，这里使用更新后的P和R
+        S_pred = S + R_old  # 使用更新后的S和R
+        
+        # 8. 计算psi统计量（用于故障检测）
+        try:
+            S_pred_inv = np.linalg.inv(S_pred)
+            psi = (innovation.T @ S_pred_inv @ innovation)[0, 0]
+        except Exception as e:
+            print(f"计算psi失败: {e}")
+            return R_old, False
+        
+        # 9. 设置卡方分布阈值（如果未提供）
+        if chi_sq_threshold is None:
+            chi_sq_threshold = chi2.ppf(0.95, df=3)  # 3维，95%分位数，约7.815
+        
+        # 10. 故障检测：如果psi不超过阈值，不进行自适应调整
+        if psi <= chi_sq_threshold:
+            return R_old, False
+        
+        # 11. 计算自适应权重lambda (tune)
+        # lambda = max(tune0, (psi - a * chi_sq_threshold) / psi)
+        tune = max(tune0, (psi - a * chi_sq_threshold) / psi)
+        
+        # 12. 计算自适应R矩阵
+        # R_adaptive = residual * residual.T + S
+        residual_outer = residual @ residual.T
+        R_adaptive = residual_outer + S
+        
+        # 13. 确保R_adaptive是正定的
+        # 提取对角线元素并确保为正
+        R_adaptive_diag = np.diag(R_adaptive)
+        R_adaptive_diag = np.maximum(R_adaptive_diag, initial_R_diag * 0.001)  # 设置下限
+        
+        # 限制R_adaptive_diag的范围
+        R_adaptive_diag = np.clip(R_adaptive_diag, 
+                                  initial_R_diag * 0.001, 
+                                  initial_R_diag * 1000.0)
+        
+        # 14. 加权融合：R_new = (1-lambda) * R_old + lambda * R_adaptive
+        R_old_diag = np.diag(R_old)
+        R_new_diag = (1 - tune) * R_old_diag + tune * R_adaptive_diag
+        
+        # 15. 构建新的R矩阵（对角矩阵）
+        R_new = np.diag(R_new_diag)
+        
+        # 16. 将更新后的R设置回MATLAB的kf对象
+        eng.setfield(matlab_kf, 'Rk', matlab.double(R_new.tolist()), nargout=0)
+        
+        return R_new, True
+        
+    except Exception as e:
+        # 如果出现任何错误，返回原始R
+        print(f"Zheng RA-UKF自适应R调整出错: {e}")
+        try:
+            return np.array(eng.getfield(matlab_kf, 'Rk')), False
+        except:
+            return np.diag(initial_R_diag), False
+
+
 def adaptive_r_update_raukf(eng, matlab_kf, ins_pred_pos_xyz, dynamic_pos_xyz, 
                              initial_R_diag, alpha=0.9, chi2_percentile=0.95):
     """
@@ -575,18 +712,18 @@ def run_single_experiment(csv_filename, project_root, filter_config, eng,
             correction_col = Kk_pos @ innovation_col  # K * innovation（3x1列向量）
             correction_xyz = correction_col.flatten()  # 转换回行向量，用于日志记录
             
-            # RA-UKF自适应R矩阵调整（在UKF更新之后，用于下一时刻）
-            # 基于当前时刻的新息调整R矩阵，用于下一时刻的UKF更新
+            # Zheng RA-UKF自适应R矩阵调整（在UKF更新之后，用于下一时刻）
+            # 基于Zheng et al. (2018)文献的方法，使用residual-based方法调整R矩阵
             try:
-                updated_R = adaptive_r_update_raukf(
-                    eng, matlab_kf, ins_pred_pos_xyz, dynamic_pos_xyz,
-                    initial_R_diag, alpha=0.9, chi2_percentile=0.95
+                updated_R, adapted = adaptive_r_update_zheng_raukf(
+                    eng, matlab_kf, matlab_avp, ins_pred_pos_xyz, dynamic_pos_xyz,
+                    initial_R_diag, chi_sq_threshold=None, tune0=0.1, a=5
                 )
                 # 保存更新后的R矩阵对角线元素，用于日志记录
                 R_adaptive_diag = np.diag(updated_R)
             except Exception as e:
                 # 如果自适应调整失败，获取当前的R矩阵
-                print(f"自适应R调整失败，使用原始R: {e}")
+                print(f"Zheng RA-UKF自适应R调整失败，使用原始R: {e}")
                 try:
                     current_R = np.array(eng.getfield(matlab_kf, 'Rk'))
                     R_adaptive_diag = np.diag(current_R)

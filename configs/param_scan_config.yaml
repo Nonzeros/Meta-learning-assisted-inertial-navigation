@@ -28,7 +28,7 @@ csv_files_config:
 # - "single": 单参数扫描，一次只改变一个参数，其他参数保持不变
 # - "grid": 网格搜索，测试所有参数组合
 # - "list": 列表模式，测试指定的参数组合
-scan_mode: "grid"  # "auto", "single", "grid", 或 "list"
+scan_mode: "single"  # "auto", "single", "grid", 或 "list"
 
 # 自动扫描配置（当scan_mode="auto"时使用）
 # 自动测试卡尔曼滤波和粒子滤波，以及所有相关参数
@@ -99,7 +99,7 @@ single_param_scan:
   #   - [0.1, 0.1, 0.1]
   #   - [0.2, 0.2, 0.2]
   #   - [0.5, 0.5, 0.5]
-  param_values: [1,10,30,50,100,500,1000]
+  param_values: [20,50,100,300,500,800]
   # param_values: [0, 0.1, 0.3, 0.6, 0.9,1.2]
 
 # 粒子滤波参数扫描（当filter.type=2时使用）
