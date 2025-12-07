@@ -100,6 +100,126 @@ SCIENTIFIC_PLOT_STYLE = {
     'paper_bgcolor': 'white',
 }
 
+def get_legend_config(position='top right', is_3d=False):
+    """
+    根据位置字符串返回图例配置字典
+    
+    参数:
+        position: 图例位置字符串
+        is_3d: 是否为3D图
+    
+    返回:
+        legend配置字典
+    """
+    # 基础配置
+    base_config = {
+        'font': dict(size=SCIENTIFIC_PLOT_STYLE['legend_font_size'], family=SCIENTIFIC_PLOT_STYLE['font_family']),
+        'itemwidth': 30,
+        'tracegroupgap': 3,
+        'itemsizing': 'constant'
+    }
+    
+    # 根据位置设置坐标和样式
+    if position == 'top right':
+        base_config.update({
+            'x': 1.02 if not is_3d else 1.0, 'y': 1.0, 
+            'xanchor': 'left', 'yanchor': 'top',
+            'bgcolor': 'white', 'bordercolor': 'black', 'borderwidth': 1
+        })
+    elif position == 'top left':
+        base_config.update({
+            'x': 0.0, 'y': 1.0, 
+            'xanchor': 'left', 'yanchor': 'top',
+            'bgcolor': 'white', 'bordercolor': 'black', 'borderwidth': 1
+        })
+    elif position == 'bottom right':
+        base_config.update({
+            'x': 1.02 if not is_3d else 1.0, 'y': 0.0, 
+            'xanchor': 'left', 'yanchor': 'bottom',
+            'bgcolor': 'white', 'bordercolor': 'black', 'borderwidth': 1
+        })
+    elif position == 'bottom left':
+        base_config.update({
+            'x': 0.0, 'y': 0.0, 
+            'xanchor': 'left', 'yanchor': 'bottom',
+            'bgcolor': 'white', 'bordercolor': 'black', 'borderwidth': 1
+        })
+    elif position == 'top center':
+        base_config.update({
+            'x': 0.5, 'y': 1.02, 
+            'xanchor': 'center', 'yanchor': 'bottom', 'orientation': 'h',
+            'bgcolor': 'white', 'bordercolor': 'black', 'borderwidth': 1
+        })
+    elif position == 'bottom center':
+        base_config.update({
+            'x': 0.5, 'y': -0.15, 
+            'xanchor': 'center', 'yanchor': 'top', 'orientation': 'h',
+            'bgcolor': 'white', 'bordercolor': 'black', 'borderwidth': 1
+        })
+    elif position == 'left center':
+        base_config.update({
+            'x': -0.15, 'y': 0.5, 
+            'xanchor': 'right', 'yanchor': 'middle',
+            'bgcolor': 'white', 'bordercolor': 'black', 'borderwidth': 1
+        })
+    elif position == 'right center':
+        base_config.update({
+            'x': 1.02 if not is_3d else 1.0, 'y': 0.5, 
+            'xanchor': 'left', 'yanchor': 'middle',
+            'bgcolor': 'white', 'bordercolor': 'black', 'borderwidth': 1
+        })
+    # 图表内部位置（使用半透明背景，不遮挡曲线）
+    elif position == 'inside top right':
+        base_config.update({
+            'x': 0.98, 'y': 0.98, 
+            'xanchor': 'right', 'yanchor': 'top',
+            'bgcolor': 'rgba(255, 255, 255, 0.85)', 'bordercolor': 'black', 'borderwidth': 1
+        })
+    elif position == 'inside top left':
+        base_config.update({
+            'x': 0.02, 'y': 0.98, 
+            'xanchor': 'left', 'yanchor': 'top',
+            'bgcolor': 'rgba(255, 255, 255, 0.85)', 'bordercolor': 'black', 'borderwidth': 1
+        })
+    elif position == 'inside bottom right':
+        base_config.update({
+            'x': 0.98, 'y': 0.02, 
+            'xanchor': 'right', 'yanchor': 'bottom',
+            'bgcolor': 'rgba(255, 255, 255, 0.85)', 'bordercolor': 'black', 'borderwidth': 1
+        })
+    elif position == 'inside bottom left':
+        base_config.update({
+            'x': 0.02, 'y': 0.02, 
+            'xanchor': 'left', 'yanchor': 'bottom',
+            'bgcolor': 'rgba(255, 255, 255, 0.85)', 'bordercolor': 'black', 'borderwidth': 1
+        })
+    elif position == 'inside center':
+        base_config.update({
+            'x': 0.5, 'y': 0.5, 
+            'xanchor': 'center', 'yanchor': 'middle',
+            'bgcolor': 'rgba(255, 255, 255, 0.85)', 'bordercolor': 'black', 'borderwidth': 1
+        })
+    elif position == 'inside top center':
+        base_config.update({
+            'x': 0.5, 'y': 0.95, 
+            'xanchor': 'center', 'yanchor': 'top',
+            'bgcolor': 'rgba(255, 255, 255, 0.85)', 'bordercolor': 'black', 'borderwidth': 1
+        })
+    elif position == 'inside bottom center':
+        base_config.update({
+            'x': 0.5, 'y': 0.05, 
+            'xanchor': 'center', 'yanchor': 'bottom',
+            'bgcolor': 'rgba(255, 255, 255, 0.85)', 'bordercolor': 'black', 'borderwidth': 1
+        })
+    else:  # 默认top right
+        base_config.update({
+            'x': 1.02 if not is_3d else 1.0, 'y': 1.0, 
+            'xanchor': 'left', 'yanchor': 'top',
+            'bgcolor': 'white', 'bordercolor': 'black', 'borderwidth': 1
+        })
+    
+    return base_config
+
 def apply_scientific_style(fig, title=None, xlabel=None, ylabel=None, legend_title=None):
     """
     应用科研绘图标准样式
@@ -1354,6 +1474,312 @@ def plot_dynamic_data_single(log_df, run_name: str):
             vdot_figs.append(fig)
     
     return pos_figs, vel_figs, vdot_figs
+
+
+def plot_trajectory(log_df, run_name: str, legend_position='inside bottom left'):
+    """
+    绘制载体运动轨迹图：xy、xz、yz和xyz
+    每张图包含：纯惯导、UKF融合结果、真实结果
+    
+    参数:
+        log_df: 日志数据DataFrame
+        run_name: 运行名称
+        legend_position: 图例位置，可选值：
+            'top right', 'top left', 'bottom right', 'bottom left',
+            'top center', 'bottom center', 'left center', 'right center'
+    
+    返回:
+        trajectory_figs: 轨迹图列表 [xy_fig, xz_fig, yz_fig, xyz_fig]
+    """
+    if log_df is None or log_df.empty:
+        return []
+    
+    # 排除最后几个数据点（与main.py保持一致）
+    exclude_last = min(5, len(log_df) - 1)
+    if exclude_last > 0:
+        log_df_plot = log_df.iloc[:-exclude_last].copy()
+    else:
+        log_df_plot = log_df.copy()
+    
+    trajectory_figs = []
+    
+    # 检查必要的数据列
+    pos_cols = {
+        'real': ['real_px', 'real_py', 'real_pz'],
+        'ukf': ['ukf_fused_px', 'ukf_fused_py', 'ukf_fused_pz'],
+        'pure': ['pure_ins_px', 'pure_ins_py', 'pure_ins_pz']
+    }
+    
+    # 检查哪些数据可用
+    available_data = {}
+    for key, cols in pos_cols.items():
+        available_data[key] = all(col in log_df_plot.columns for col in cols)
+    
+    # 1. XY平面轨迹图（二维）
+    fig_xy = go.Figure()
+    
+    if available_data.get('real', False):
+        valid_mask = (pd.notna(log_df_plot['real_px']) & pd.notna(log_df_plot['real_py']) & 
+                     (log_df_plot['real_px'] != 0) & (log_df_plot['real_py'] != 0))
+        if valid_mask.any():
+            fig_xy.add_trace(go.Scatter(
+                x=log_df_plot.loc[valid_mask, 'real_px'],
+                y=log_df_plot.loc[valid_mask, 'real_py'],
+                name='真实值',
+                mode='lines+markers',
+                line=dict(color='#06A77D', width=1, dash='dot'),
+                marker=dict(size=3, opacity=0.6)
+            ))
+    
+    if available_data.get('ukf', False):
+        valid_mask = (pd.notna(log_df_plot['ukf_fused_px']) & pd.notna(log_df_plot['ukf_fused_py']) & 
+                     (log_df_plot['ukf_fused_px'] != 0) & (log_df_plot['ukf_fused_py'] != 0))
+        if valid_mask.any():
+            fig_xy.add_trace(go.Scatter(
+                x=log_df_plot.loc[valid_mask, 'ukf_fused_px'],
+                y=log_df_plot.loc[valid_mask, 'ukf_fused_py'],
+                name='UKF融合结果',
+                mode='lines+markers',
+                line=dict(color='#2E86AB', width=1),
+                marker=dict(size=3, opacity=0.6)
+            ))
+    
+    if available_data.get('pure', False):
+        valid_mask = (pd.notna(log_df_plot['pure_ins_px']) & pd.notna(log_df_plot['pure_ins_py']) & 
+                     (log_df_plot['pure_ins_px'] != 0) & (log_df_plot['pure_ins_py'] != 0))
+        if valid_mask.any():
+            fig_xy.add_trace(go.Scatter(
+                x=log_df_plot.loc[valid_mask, 'pure_ins_px'],
+                y=log_df_plot.loc[valid_mask, 'pure_ins_py'],
+                name='纯惯导',
+                mode='lines+markers',
+                line=dict(color='#F24236', width=1, dash='dash'),
+                marker=dict(size=3, opacity=0.6)
+            ))
+    
+    fig_xy = apply_scientific_style(
+        fig_xy,
+        title='XY平面轨迹（东向-北向）',
+        xlabel='东向位置 (m)',
+        ylabel='北向位置 (m)'
+    )
+    # 设置图例位置
+    legend_config = get_legend_config(legend_position)
+    fig_xy.update_layout(
+        height=600,
+        xaxis=dict(scaleanchor="y", scaleratio=1),  # 保持xy轴比例一致
+        legend=legend_config
+    )
+    trajectory_figs.append(fig_xy)
+    
+    # 2. XZ平面轨迹图（二维）
+    fig_xz = go.Figure()
+    
+    if available_data.get('real', False):
+        valid_mask = (pd.notna(log_df_plot['real_px']) & pd.notna(log_df_plot['real_pz']) & 
+                     (log_df_plot['real_px'] != 0) & (log_df_plot['real_pz'] != 0))
+        if valid_mask.any():
+            fig_xz.add_trace(go.Scatter(
+                x=log_df_plot.loc[valid_mask, 'real_px'],
+                y=log_df_plot.loc[valid_mask, 'real_pz'],
+                name='真实值',
+                mode='lines+markers',
+                line=dict(color='#06A77D', width=1, dash='dot'),
+                marker=dict(size=3, opacity=0.6)
+            ))
+    
+    if available_data.get('ukf', False):
+        valid_mask = (pd.notna(log_df_plot['ukf_fused_px']) & pd.notna(log_df_plot['ukf_fused_pz']) & 
+                     (log_df_plot['ukf_fused_px'] != 0) & (log_df_plot['ukf_fused_pz'] != 0))
+        if valid_mask.any():
+            fig_xz.add_trace(go.Scatter(
+                x=log_df_plot.loc[valid_mask, 'ukf_fused_px'],
+                y=log_df_plot.loc[valid_mask, 'ukf_fused_pz'],
+                name='UKF融合结果',
+                mode='lines+markers',
+                line=dict(color='#2E86AB', width=1),
+                marker=dict(size=3, opacity=0.6)
+            ))
+    
+    if available_data.get('pure', False):
+        valid_mask = (pd.notna(log_df_plot['pure_ins_px']) & pd.notna(log_df_plot['pure_ins_pz']) & 
+                     (log_df_plot['pure_ins_px'] != 0) & (log_df_plot['pure_ins_pz'] != 0))
+        if valid_mask.any():
+            fig_xz.add_trace(go.Scatter(
+                x=log_df_plot.loc[valid_mask, 'pure_ins_px'],
+                y=log_df_plot.loc[valid_mask, 'pure_ins_pz'],
+                name='纯惯导',
+                mode='lines+markers',
+                line=dict(color='#F24236', width=1, dash='dash'),
+                marker=dict(size=3, opacity=0.6)
+            ))
+    
+    fig_xz = apply_scientific_style(
+        fig_xz,
+        title='XZ平面轨迹（东向-天向）',
+        xlabel='东向位置 (m)',
+        ylabel='天向位置 (m)'
+    )
+    # 设置图例位置
+    legend_config = get_legend_config(legend_position)
+    fig_xz.update_layout(
+        height=600,
+        xaxis=dict(scaleanchor="y", scaleratio=1),  # 保持xz轴比例一致
+        legend=legend_config
+    )
+    trajectory_figs.append(fig_xz)
+    
+    # 3. YZ平面轨迹图（二维）
+    fig_yz = go.Figure()
+    
+    if available_data.get('real', False):
+        valid_mask = (pd.notna(log_df_plot['real_py']) & pd.notna(log_df_plot['real_pz']) & 
+                     (log_df_plot['real_py'] != 0) & (log_df_plot['real_pz'] != 0))
+        if valid_mask.any():
+            fig_yz.add_trace(go.Scatter(
+                x=log_df_plot.loc[valid_mask, 'real_py'],
+                y=log_df_plot.loc[valid_mask, 'real_pz'],
+                name='真实值',
+                mode='lines+markers',
+                line=dict(color='#06A77D', width=1, dash='dot'),
+                marker=dict(size=3, opacity=0.6)
+            ))
+    
+    if available_data.get('ukf', False):
+        valid_mask = (pd.notna(log_df_plot['ukf_fused_py']) & pd.notna(log_df_plot['ukf_fused_pz']) & 
+                     (log_df_plot['ukf_fused_py'] != 0) & (log_df_plot['ukf_fused_pz'] != 0))
+        if valid_mask.any():
+            fig_yz.add_trace(go.Scatter(
+                x=log_df_plot.loc[valid_mask, 'ukf_fused_py'],
+                y=log_df_plot.loc[valid_mask, 'ukf_fused_pz'],
+                name='UKF融合结果',
+                mode='lines+markers',
+                line=dict(color='#2E86AB', width=1),
+                marker=dict(size=3, opacity=0.6)
+            ))
+    
+    if available_data.get('pure', False):
+        valid_mask = (pd.notna(log_df_plot['pure_ins_py']) & pd.notna(log_df_plot['pure_ins_pz']) & 
+                     (log_df_plot['pure_ins_py'] != 0) & (log_df_plot['pure_ins_pz'] != 0))
+        if valid_mask.any():
+            fig_yz.add_trace(go.Scatter(
+                x=log_df_plot.loc[valid_mask, 'pure_ins_py'],
+                y=log_df_plot.loc[valid_mask, 'pure_ins_pz'],
+                name='纯惯导',
+                mode='lines+markers',
+                line=dict(color='#F24236', width=1, dash='dash'),
+                marker=dict(size=3, opacity=0.6)
+            ))
+    
+    fig_yz = apply_scientific_style(
+        fig_yz,
+        title='YZ平面轨迹（北向-天向）',
+        xlabel='北向位置 (m)',
+        ylabel='天向位置 (m)'
+    )
+    # 设置图例位置
+    legend_config = get_legend_config(legend_position)
+    fig_yz.update_layout(
+        height=600,
+        xaxis=dict(scaleanchor="y", scaleratio=1),  # 保持yz轴比例一致
+        legend=legend_config
+    )
+    trajectory_figs.append(fig_yz)
+    
+    # 4. XYZ三维轨迹图
+    fig_xyz = go.Figure()
+    
+    if available_data.get('real', False):
+        valid_mask = (pd.notna(log_df_plot['real_px']) & pd.notna(log_df_plot['real_py']) & 
+                     pd.notna(log_df_plot['real_pz']) & 
+                     (log_df_plot['real_px'] != 0) & (log_df_plot['real_py'] != 0) & (log_df_plot['real_pz'] != 0))
+        if valid_mask.any():
+            fig_xyz.add_trace(go.Scatter3d(
+                x=log_df_plot.loc[valid_mask, 'real_px'],
+                y=log_df_plot.loc[valid_mask, 'real_py'],
+                z=log_df_plot.loc[valid_mask, 'real_pz'],
+                name='真实值',
+                mode='lines+markers',
+                line=dict(color='#06A77D', width=1.5, dash='dot'),
+                marker=dict(size=3, opacity=0.6)
+            ))
+    
+    if available_data.get('ukf', False):
+        valid_mask = (pd.notna(log_df_plot['ukf_fused_px']) & pd.notna(log_df_plot['ukf_fused_py']) & 
+                     pd.notna(log_df_plot['ukf_fused_pz']) & 
+                     (log_df_plot['ukf_fused_px'] != 0) & (log_df_plot['ukf_fused_py'] != 0) & (log_df_plot['ukf_fused_pz'] != 0))
+        if valid_mask.any():
+            fig_xyz.add_trace(go.Scatter3d(
+                x=log_df_plot.loc[valid_mask, 'ukf_fused_px'],
+                y=log_df_plot.loc[valid_mask, 'ukf_fused_py'],
+                z=log_df_plot.loc[valid_mask, 'ukf_fused_pz'],
+                name='UKF融合结果',
+                mode='lines+markers',
+                line=dict(color='#2E86AB', width=1.5),
+                marker=dict(size=3, opacity=0.6)
+            ))
+    
+    if available_data.get('pure', False):
+        valid_mask = (pd.notna(log_df_plot['pure_ins_px']) & pd.notna(log_df_plot['pure_ins_py']) & 
+                     pd.notna(log_df_plot['pure_ins_pz']) & 
+                     (log_df_plot['pure_ins_px'] != 0) & (log_df_plot['pure_ins_py'] != 0) & (log_df_plot['pure_ins_pz'] != 0))
+        if valid_mask.any():
+            fig_xyz.add_trace(go.Scatter3d(
+                x=log_df_plot.loc[valid_mask, 'pure_ins_px'],
+                y=log_df_plot.loc[valid_mask, 'pure_ins_py'],
+                z=log_df_plot.loc[valid_mask, 'pure_ins_pz'],
+                name='纯惯导',
+                mode='lines+markers',
+                line=dict(color='#F24236', width=1.5, dash='dash'),
+                marker=dict(size=3, opacity=0.6)
+            ))
+    
+    # 应用科研绘图样式（3D图）
+    fig_xyz.update_layout(
+        title=dict(
+            text='XYZ三维轨迹',
+            font=dict(size=SCIENTIFIC_PLOT_STYLE['title_font_size'], family=SCIENTIFIC_PLOT_STYLE['font_family']),
+            x=0.5,
+            xanchor='center'
+        ),
+        scene=dict(
+            xaxis_title='东向位置 (m)',
+            yaxis_title='北向位置 (m)',
+            zaxis_title='天向位置 (m)',
+            xaxis=dict(
+                titlefont=dict(size=SCIENTIFIC_PLOT_STYLE['axis_title_font_size'], family=SCIENTIFIC_PLOT_STYLE['font_family'], color='black'),
+                tickfont=dict(size=SCIENTIFIC_PLOT_STYLE['tick_font_size'], family=SCIENTIFIC_PLOT_STYLE['font_family'], color='black'),
+                gridcolor=SCIENTIFIC_PLOT_STYLE['grid_color'],
+                backgroundcolor='white'
+            ),
+            yaxis=dict(
+                titlefont=dict(size=SCIENTIFIC_PLOT_STYLE['axis_title_font_size'], family=SCIENTIFIC_PLOT_STYLE['font_family'], color='black'),
+                tickfont=dict(size=SCIENTIFIC_PLOT_STYLE['tick_font_size'], family=SCIENTIFIC_PLOT_STYLE['font_family'], color='black'),
+                gridcolor=SCIENTIFIC_PLOT_STYLE['grid_color'],
+                backgroundcolor='white'
+            ),
+            zaxis=dict(
+                titlefont=dict(size=SCIENTIFIC_PLOT_STYLE['axis_title_font_size'], family=SCIENTIFIC_PLOT_STYLE['font_family'], color='black'),
+                tickfont=dict(size=SCIENTIFIC_PLOT_STYLE['tick_font_size'], family=SCIENTIFIC_PLOT_STYLE['font_family'], color='black'),
+                gridcolor=SCIENTIFIC_PLOT_STYLE['grid_color'],
+                backgroundcolor='white'
+            ),
+            bgcolor='white'
+        ),
+        font=dict(
+            family=SCIENTIFIC_PLOT_STYLE['font_family'],
+            size=SCIENTIFIC_PLOT_STYLE['font_size'],
+            color='black'
+        ),
+        legend=get_legend_config(legend_position, is_3d=True),
+        plot_bgcolor=SCIENTIFIC_PLOT_STYLE['plot_bgcolor'],
+        paper_bgcolor=SCIENTIFIC_PLOT_STYLE['paper_bgcolor'],
+        height=700,
+        margin=dict(l=80, r=120, t=80, b=60)
+    )
+    trajectory_figs.append(fig_xyz)
+    
+    return trajectory_figs
 
 
 def plot_aerodynamic_force(log_df, run_name: str):
@@ -2800,6 +3226,55 @@ def main():
                                 st.plotly_chart(fig, use_container_width=True)
                         else:
                             st.warning("无法生成位置对比图")
+                    
+                    # 绘制载体运动轨迹图
+                    st.markdown("---")
+                    st.markdown("#### 🛸 载体运动轨迹")
+                    st.markdown("展示载体在空间中的运动轨迹，包括二维平面投影和三维轨迹")
+                    
+                    # 图例位置选择器
+                    legend_position = st.selectbox(
+                        "选择图例位置",
+                        options=[
+                            # 图表外部位置
+                            'top right', 'top left', 'bottom right', 'bottom left', 
+                            'top center', 'bottom center', 'left center', 'right center',
+                            # 图表内部位置（半透明，不遮挡曲线）
+                            'inside top right', 'inside top left', 'inside bottom right', 'inside bottom left',
+                            'inside center', 'inside top center', 'inside bottom center'
+                        ],
+                        index=11,  # 默认选择 'inside bottom left'（内部左下角）
+                        key='trajectory_legend_position',
+                        help="选择图例在图表中的显示位置。内部位置使用半透明背景，不会完全遮挡曲线。"
+                    )
+                    
+                    trajectory_figs = plot_trajectory(log_df, selected_run, legend_position=legend_position)
+                    
+                    if trajectory_figs and len(trajectory_figs) >= 4:
+                        # 使用标签页分别显示二维和三维轨迹
+                        tab_2d, tab_3d = st.tabs(["📐 二维平面轨迹", "🌐 三维轨迹"])
+                        
+                        with tab_2d:
+                            st.markdown("##### 二维平面轨迹投影")
+                            col_xy, col_xz = st.columns(2)
+                            
+                            with col_xy:
+                                st.markdown("**XY平面（东向-北向）**")
+                                st.plotly_chart(trajectory_figs[0], use_container_width=True)
+                            
+                            with col_xz:
+                                st.markdown("**XZ平面（东向-天向）**")
+                                st.plotly_chart(trajectory_figs[1], use_container_width=True)
+                            
+                            st.markdown("**YZ平面（北向-天向）**")
+                            st.plotly_chart(trajectory_figs[2], use_container_width=True)
+                        
+                        with tab_3d:
+                            st.markdown("##### 三维轨迹")
+                            st.plotly_chart(trajectory_figs[3], use_container_width=True)
+                            st.caption("可以拖动鼠标旋转视角，滚轮缩放，右键拖动平移")
+                    elif trajectory_figs:
+                        st.warning("轨迹图数据不完整，无法显示")
                     
                     # 绘制气动力时间序列对比图
                     fa_figs, fa_total_figs = plot_aerodynamic_force(log_df, selected_run)
