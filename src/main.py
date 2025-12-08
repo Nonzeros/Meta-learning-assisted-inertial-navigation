@@ -21,32 +21,37 @@ import traceback
 # 导入MLflow工具
 import sys
 import mlflow
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'visualization'))
+
+sys.path.append(
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "visualization")
+)
 from mlflow_utils import (
-    setup_mlflow_experiment, 
-    log_experiment_params, 
+    setup_mlflow_experiment,
+    log_experiment_params,
     log_experiment_metrics,
     log_model_file,
     start_run,
-    end_run
+    end_run,
 )
 
 # 获取项目根目录（main.py 在 src/ 目录下，所以需要向上两级）
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # 读取滤波器配置文件
-config_path = os.path.join(project_root, 'configs', 'filter_config.yaml')
-with open(config_path, 'r', encoding='utf-8') as f:
+config_path = os.path.join(project_root, "configs", "filter_config.yaml")
+with open(config_path, "r", encoding="utf-8") as f:
     filter_config = yaml.safe_load(f)
 
 # 读取参数扫描配置文件（如果存在）
-param_scan_config_path = os.path.join(project_root, 'configs', 'param_scan_config.yaml')
+param_scan_config_path = os.path.join(project_root, "configs", "param_scan_config.yaml")
 enable_param_scan = os.path.exists(param_scan_config_path)
 
 if enable_param_scan:
     print("检测到参数扫描配置文件，启用参数扫描模式")
     scan_config = param_scanner.load_param_scan_config(param_scan_config_path)
-    param_combinations = param_scanner.generate_param_combinations(scan_config, filter_config)
+    param_combinations = param_scanner.generate_param_combinations(
+        scan_config, filter_config
+    )
     print(f"生成了 {len(param_combinations)} 组参数组合")
 else:
     print("未检测到参数扫描配置文件，使用单组参数运行")
@@ -54,40 +59,44 @@ else:
 
 # 动力学信息获取
 ## 1.模型、数据准备
-#测试集
+# 测试集
 from experiment_runner import run_single_experiment
 
 # 要处理的CSV文件列表（完整列表）
 all_csv_files = [
-    'custom_figure8_baseline_35wind.csv',
-    'custom_figure8_baseline_70p20sint.csv',
-    'custom_figure8_baseline_70wind.csv',
-    'custom_figure8_baseline_100wind.csv',
-    'custom_figure8_baseline_nowind.csv'
+    "custom_figure8_baseline_35wind.csv",
+    "custom_figure8_baseline_70p20sint.csv",
+    "custom_figure8_baseline_70wind.csv",
+    "custom_figure8_baseline_100wind.csv",
+    "custom_figure8_baseline_nowind.csv",
 ]
 
 # 根据配置文件决定处理哪些CSV文件
 if enable_param_scan:
-    csv_config = scan_config.get('csv_files_config', {})
-    run_all_csv_files = csv_config.get('run_all_csv_files', True)
-    
+    csv_config = scan_config.get("csv_files_config", {})
+    run_all_csv_files = csv_config.get("run_all_csv_files", True)
+
     if run_all_csv_files:
         # 执行全部CSV文件
         csv_files_to_process = all_csv_files.copy()
         print(f"配置：执行全部CSV文件（共 {len(csv_files_to_process)} 个）")
     else:
         # 只执行指定的一个CSV文件
-        single_csv_file = csv_config.get('single_csv_file', None)
-        
+        single_csv_file = csv_config.get("single_csv_file", None)
+
         if single_csv_file is None:
             # 如果未指定，默认使用第一个文件
             csv_files_to_process = [all_csv_files[0]]
-            print(f"配置：只执行一个CSV文件（未指定，使用第一个）: {csv_files_to_process[0]}")
+            print(
+                f"配置：只执行一个CSV文件（未指定，使用第一个）: {csv_files_to_process[0]}"
+            )
         elif isinstance(single_csv_file, int):
             # 如果是索引
             if 0 <= single_csv_file < len(all_csv_files):
                 csv_files_to_process = [all_csv_files[single_csv_file]]
-                print(f"配置：只执行一个CSV文件（索引 {single_csv_file}）: {csv_files_to_process[0]}")
+                print(
+                    f"配置：只执行一个CSV文件（索引 {single_csv_file}）: {csv_files_to_process[0]}"
+                )
             else:
                 print(f"警告：CSV文件索引 {single_csv_file} 超出范围，使用第一个文件")
                 csv_files_to_process = [all_csv_files[0]]
@@ -107,7 +116,7 @@ else:
     csv_files_to_process = all_csv_files.copy()
     print(f"未启用参数扫描，执行全部CSV文件（共 {len(csv_files_to_process)} 个）")
 
-adapt_end_index = 100 # 适应部分下标(不包括)
+adapt_end_index = 100  # 适应部分下标(不包括)
 
 # ========== MLflow实验记录初始化 ==========
 # 设置MLflow实验
@@ -115,13 +124,28 @@ mlflow_tracking_uri = os.path.join(project_root, "mlruns")
 experiment_name, _ = setup_mlflow_experiment(tracking_uri=mlflow_tracking_uri)
 
 # 2.matlab设置
-eng = matlab.engine.start_matlab()
-# 将matlab文件加入工作目录
-matlab_utils_path = os.path.join(project_root, 'matlab', 'utils')
-matlab_psins_path = os.path.join(project_root, 'matlab', 'third_part', 'psins240809')
+# ========== 关键修复：为每个模型启动独立的MATLAB引擎实例 ==========
+# 这样可以确保两个模型完全隔离，不会出现KF对象被污染的问题
+print("正在启动MATLAB引擎实例...")
+print("  - 启动元学习模型MATLAB引擎...")
+# 使用 -nodesktop 参数可以避免弹出 MATLAB 窗口（如果需要无窗口模式）
+# eng_intelligent = matlab.engine.start_matlab("-nodesktop")
+eng_intelligent = matlab.engine.start_matlab()  # 默认可能会打开 MATLAB 窗口
+print("  - 启动零动力学模型MATLAB引擎...")
+eng_baseline = matlab.engine.start_matlab()  # 默认可能会打开 MATLAB 窗口
+print("  - 启动线性阻力模型MATLAB引擎...")
+eng_linear_drag = matlab.engine.start_matlab()  # 线性阻力模型使用独立的MATLAB引擎
+print("  - 启动线性拟合模型MATLAB引擎...")
+eng_fit = matlab.engine.start_matlab()  # 线性拟合模型使用独立的MATLAB引擎
+print("MATLAB引擎启动完成\n")
+
+# 将matlab文件加入工作目录（所有引擎都需要）
+matlab_utils_path = os.path.join(project_root, "matlab", "utils")
+matlab_psins_path = os.path.join(project_root, "matlab", "third_part", "psins240809")
 # 将路径转换为MATLAB格式（使用正斜杠）
-eng.addpath(matlab_utils_path.replace('\\', '/'))
-eng.addpath(matlab_psins_path.replace('\\', '/'))
+for eng in [eng_intelligent, eng_baseline, eng_linear_drag, eng_fit]:
+    eng.addpath(matlab_utils_path.replace("\\", "/"))
+    eng.addpath(matlab_psins_path.replace("\\", "/"))
 # 导入psins全局变量
 glv_init_code = """
     % 声明glv为全局变量
@@ -214,15 +238,19 @@ glv_init_code = """
 # ========== 参数扫描循环 ==========
 # 创建大任务文件夹（以启动时间命名）
 task_batch_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-task_batch_folder = os.path.join(project_root, "navigation_logs", f"task_batch_{task_batch_timestamp}")
+task_batch_folder = os.path.join(
+    project_root, "navigation_logs", f"task_batch_{task_batch_timestamp}"
+)
 if not os.path.exists(task_batch_folder):
     os.makedirs(task_batch_folder)
 print(f"\n大任务文件夹已创建: {task_batch_folder}")
 
 # 初始化运行日志（保存到大任务文件夹）
 run_log_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-run_log_file = os.path.join(task_batch_folder, f"experiment_run_log_{run_log_timestamp}.txt")
-run_log = open(run_log_file, 'w', encoding='utf-8')
+run_log_file = os.path.join(
+    task_batch_folder, f"experiment_run_log_{run_log_timestamp}.txt"
+)
+run_log = open(run_log_file, "w", encoding="utf-8")
 
 # 实验结果汇总
 experiment_results = []
@@ -251,111 +279,138 @@ run_log.flush()
 # 外层循环：遍历参数组合
 for param_idx, current_filter_config in enumerate(param_combinations, 1):
     param_str = param_scanner.get_param_string(current_filter_config)
-    
+
     print(f"\n{'='*60}")
     print(f"参数组合 {param_idx}/{total_combinations}: {param_str}")
     print(f"{'='*60}")
-    
+
     run_log.write(f"\n{'='*60}\n")
     run_log.write(f"参数组合 {param_idx}/{total_combinations}: {param_str}\n")
     run_log.write(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
     run_log.write(f"{'='*60}\n")
     run_log.flush()
-    
+
     # 内层循环：遍历每个CSV文件
     for file_idx, csv_filename in enumerate(csv_files_to_process, 1):
         task_num = (param_idx - 1) * len(csv_files_to_process) + file_idx
-        print(f"\n  任务 {task_num}/{total_tasks}: 文件 {file_idx}/{len(csv_files_to_process)} - {csv_filename}")
+        print(
+            f"\n  任务 {task_num}/{total_tasks}: 文件 {file_idx}/{len(csv_files_to_process)} - {csv_filename}"
+        )
         print(f"  参数: {param_str}")
-        
-        run_log.write(f"\n  任务 {task_num}/{total_tasks}: 文件 {file_idx}/{len(csv_files_to_process)} - {csv_filename}\n")
+
+        run_log.write(
+            f"\n  任务 {task_num}/{total_tasks}: 文件 {file_idx}/{len(csv_files_to_process)} - {csv_filename}\n"
+        )
         run_log.write(f"  参数: {param_str}\n")
         run_log.write(f"  时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         run_log.flush()
-        
+
         try:
             # 为每个参数组合和文件创建独立的MLflow run
             run_name = f"{csv_filename.replace('.csv', '')}_{param_str}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             mlflow_run = start_run(run_name=run_name)
-            
+
             # 记录参数组合信息到MLflow
             mlflow.log_param("param_combination_id", param_idx)
             mlflow.log_param("param_combination_str", param_str)
             mlflow.log_param("file_index", file_idx)
             mlflow.log_param("task_number", task_num)
-            mlflow.log_param("task_batch_folder", os.path.basename(task_batch_folder))  # 记录大任务文件夹名称
-            mlflow.log_param("task_batch_timestamp", task_batch_timestamp)  # 记录大任务时间戳
-            
+            mlflow.log_param(
+                "task_batch_folder", os.path.basename(task_batch_folder)
+            )  # 记录大任务文件夹名称
+            mlflow.log_param(
+                "task_batch_timestamp", task_batch_timestamp
+            )  # 记录大任务时间戳
+
             # 运行单个实验
             success, error_msg, results = run_single_experiment(
                 csv_filename=csv_filename,
                 project_root=project_root,
                 filter_config=current_filter_config,  # 使用当前参数组合
-                eng=eng,
+                eng_intelligent=eng_intelligent,  # 元学习模型使用独立的MATLAB引擎
+                eng_baseline=eng_baseline,  # 零动力学模型使用独立的MATLAB引擎
+                eng_linear_drag=eng_linear_drag,  # 线性阻力模型使用独立的MATLAB引擎
+                eng_fit=eng_fit,  # 线性拟合模型使用独立的MATLAB引擎
                 adapt_end_index=adapt_end_index,
                 glv_init_code=glv_init_code,
-                task_batch_folder=task_batch_folder  # 传递大任务文件夹路径
+                task_batch_folder=task_batch_folder,  # 传递大任务文件夹路径
             )
-        
+
             if success:
                 print(f"  ✓ 任务 {task_num} 处理成功")
                 run_log.write(f"  状态: 成功\n")
                 if results:
-                    experiment_results.append({
-                        'param_combination': param_str,
-                        'param_idx': param_idx,
-                        'file': csv_filename,
-                        'task_num': task_num,
-                        'success': True,
-                        'results': results
-                    })
+                    experiment_results.append(
+                        {
+                            "param_combination": param_str,
+                            "param_idx": param_idx,
+                            "file": csv_filename,
+                            "task_num": task_num,
+                            "success": True,
+                            "results": results,
+                        }
+                    )
                     print(f"    - 日志文件: {results.get('log_file', 'N/A')}")
-                    metrics = results.get('metrics', {})
-                    print(f"    - UKF速度RMSE (总体): {metrics.get('ukf_vel_rmse_total', 'N/A'):.6f}")
-                    print(f"    - UKF位置RMSE (总体): {metrics.get('ukf_pos_rmse_total', 'N/A'):.6f}")
+                    metrics = results.get("metrics", {})
+                    print(
+                        f"    - UKF速度RMSE (总体): {metrics.get('ukf_vel_rmse_total', 'N/A'):.6f}"
+                    )
+                    print(
+                        f"    - UKF位置RMSE (总体): {metrics.get('ukf_pos_rmse_total', 'N/A'):.6f}"
+                    )
             else:
                 print(f"  ✗ 任务 {task_num} 处理失败: {error_msg}")
                 run_log.write(f"  状态: 失败\n")
                 run_log.write(f"  错误信息: {error_msg}\n")
-                failed_files.append({
-                    'param_combination': param_str,
-                    'param_idx': param_idx,
-                    'file': csv_filename,
-                    'task_num': task_num,
-                    'error': error_msg
-                })
-                experiment_results.append({
-                    'param_combination': param_str,
-                    'param_idx': param_idx,
-                    'file': csv_filename,
-                    'task_num': task_num,
-                    'success': False,
-                    'error': error_msg
-                })
-            
+                failed_files.append(
+                    {
+                        "param_combination": param_str,
+                        "param_idx": param_idx,
+                        "file": csv_filename,
+                        "task_num": task_num,
+                        "error": error_msg,
+                    }
+                )
+                experiment_results.append(
+                    {
+                        "param_combination": param_str,
+                        "param_idx": param_idx,
+                        "file": csv_filename,
+                        "task_num": task_num,
+                        "success": False,
+                        "error": error_msg,
+                    }
+                )
+
             # 结束当前MLflow run
             end_run()
-            
+
         except Exception as e:
-            error_msg = f"处理任务 {task_num} 时发生异常: {str(e)}\n{traceback.format_exc()}"
+            error_msg = (
+                f"处理任务 {task_num} 时发生异常: {str(e)}\n{traceback.format_exc()}"
+            )
             print(f"  ✗ 任务 {task_num} 处理异常: {error_msg}")
             run_log.write(f"  状态: 异常\n")
             run_log.write(f"  错误信息: {error_msg}\n")
-            failed_files.append({
-                'param_combination': param_str,
-                'param_idx': param_idx,
-                'file': csv_filename,
-                'task_num': task_num,
-                'error': error_msg
-            })
-            experiment_results.append({
-                'param_combination': param_str,
-                'param_idx': param_idx,
-                'file': csv_filename,
-                'task_num': task_num,
-                'success': False,
-                'error': error_msg
-            })
+            failed_files.append(
+                {
+                    "param_combination": param_str,
+                    "param_idx": param_idx,
+                    "file": csv_filename,
+                    "task_num": task_num,
+                    "error": error_msg,
+                }
+            )
+            experiment_results.append(
+                {
+                    "param_combination": param_str,
+                    "param_idx": param_idx,
+                    "file": csv_filename,
+                    "task_num": task_num,
+                    "success": False,
+                    "error": error_msg,
+                }
+            )
             # 确保MLflow run被结束（即使出错）
             try:
                 end_run()
@@ -363,17 +418,27 @@ for param_idx, current_filter_config in enumerate(param_combinations, 1):
                 pass
 
 # 关闭MATLAB引擎
+print("\n正在关闭MATLAB引擎...")
 try:
-    eng.quit()
+    eng_intelligent.quit()
+    eng_linear_drag.quit()
+    eng_fit.quit()
+    print("  - 元学习模型MATLAB引擎已关闭")
 except:
     pass
+try:
+    eng_baseline.quit()
+    print("  - 零动力学模型MATLAB引擎已关闭")
+except:
+    pass
+print("所有MATLAB引擎已关闭\n")
 
 # ========== 输出汇总报告 ==========
 print(f"\n{'='*60}")
 print(f"实验汇总报告")
 print(f"{'='*60}")
 
-success_count = sum(1 for r in experiment_results if r.get('success', False))
+success_count = sum(1 for r in experiment_results if r.get("success", False))
 failed_count = len(failed_files)
 
 print(f"\n处理完成统计:")
@@ -386,17 +451,25 @@ print(f"  - 失败: {failed_count}")
 if success_count > 0:
     print(f"\n成功处理的任务:")
     for r in experiment_results:
-        if r.get('success', False):
-            print(f"  ✓ 参数组合 {r.get('param_idx', 'N/A')}: {r.get('param_combination', 'N/A')} - {r['file']}")
-            if 'results' in r and r['results']:
-                metrics = r['results'].get('metrics', {})
-                print(f"    - UKF速度RMSE (总体): {metrics.get('ukf_vel_rmse_total', 'N/A'):.6f}")
-                print(f"    - UKF位置RMSE (总体): {metrics.get('ukf_pos_rmse_total', 'N/A'):.6f}")
+        if r.get("success", False):
+            print(
+                f"  ✓ 参数组合 {r.get('param_idx', 'N/A')}: {r.get('param_combination', 'N/A')} - {r['file']}"
+            )
+            if "results" in r and r["results"]:
+                metrics = r["results"].get("metrics", {})
+                print(
+                    f"    - UKF速度RMSE (总体): {metrics.get('ukf_vel_rmse_total', 'N/A'):.6f}"
+                )
+                print(
+                    f"    - UKF位置RMSE (总体): {metrics.get('ukf_pos_rmse_total', 'N/A'):.6f}"
+                )
 
 if failed_count > 0:
     print(f"\n失败的任务:")
     for f in failed_files:
-        print(f"  ✗ 参数组合 {f.get('param_idx', 'N/A')}: {f.get('param_combination', 'N/A')} - {f['file']}")
+        print(
+            f"  ✗ 参数组合 {f.get('param_idx', 'N/A')}: {f.get('param_combination', 'N/A')} - {f['file']}"
+        )
         print(f"    错误: {f['error'][:200]}...")  # 只显示前200个字符
 
 print(f"\n运行日志已保存到: {run_log_file}")

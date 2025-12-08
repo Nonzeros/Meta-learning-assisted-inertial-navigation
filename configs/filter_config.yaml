@@ -42,7 +42,7 @@ matlab_ukf:
   # 位置误差参数（用于设置R矩阵）
   # poserrset([rx, ry, rz])
   # 注意：pos_err 会通过 poserrset 设置 rk，然后 kfinit 会自动设置 kf.Rk = diag(rk)^2
-  pos_err: [1.0, 1.0, 1.0]  # 位置误差 (m)
+  pos_err: [0.01, 0.01, 0.03]  # 位置误差 (m)
   
   # R矩阵（可选，如果提供则覆盖poserrset设置的Rk）
   # 如果不需要覆盖，可以注释掉或删除此配置，让 pos_err 设置的 rk 生效

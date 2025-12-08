@@ -8,7 +8,7 @@ csv_files_config:
   # 是否执行全部CSV文件
   # true: 执行所有CSV文件（默认行为，适合完整测试）
   # false: 只执行指定的一个CSV文件（适合快速验证单个参数）
-  run_all_csv_files: true
+  run_all_csv_files: false
   
   # 当run_all_csv_files为false时，指定要执行的CSV文件
   # 可以是：
@@ -17,7 +17,7 @@ csv_files_config:
   # 如果未指定（null），默认使用第一个CSV文件
   # 
   # 示例：
-  single_csv_file: 'custom_figure8_baseline_100wind.csv'  # 使用文件名
+  single_csv_file: 'custom_figure8_baseline_nowind.csv'  # 使用文件名
   # single_csv_file: 0  # 使用索引（第一个文件）
   # single_csv_file: 4  # 使用索引（最后一个文件）
   # single_csv_file: null  # 当前设置为null，当run_all_csv_files=false时使用第一个文件
@@ -99,7 +99,7 @@ single_param_scan:
   #   - [0.1, 0.1, 0.1]
   #   - [0.2, 0.2, 0.2]
   #   - [0.5, 0.5, 0.5]
-  param_values: [20,50,100,300,500,800]
+  param_values: [50,100,300,500,800]
   # param_values: [0, 0.1, 0.3, 0.6, 0.9,1.2]
 
 # 粒子滤波参数扫描（当filter.type=2时使用）
