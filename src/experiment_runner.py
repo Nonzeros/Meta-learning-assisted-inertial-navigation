@@ -1435,7 +1435,17 @@ def run_single_experiment(
                 Ri_fit = np.array(matlab_Ri_fit)
 
                 # 获取当前输入数据（用于线性拟合模型）
-                current_input = inputdata[loop_index - first_index, :] if loop_index - first_index < len(inputdata) else inputdata[-1, :]
+                # 参考元学习模型的做法，从data.X中提取当前输入
+                current_input = data.X[loop_index - 1, :].copy()
+                # 更新速度为线性拟合模型的上一时刻速度（LLH坐标系，与元学习模型保持一致）
+                # last_avp_fit[0, 3:6] 是LLH坐标系的速度
+                current_input[0:3] = last_avp_fit[0, 3:6]
+                # 更新四元数为线性拟合模型的上一时刻姿态
+                matlab_qua_fit = eng_fit.a2qua_subfun(
+                    matlab.double(att_fit.tolist()), nargout=1
+                )
+                qua_array_fit = np.array(matlab_qua_fit).flatten()
+                current_input[3:7] = qua_array_fit
 
                 # 线性拟合模型计算
                 vt_fit = last_avp_fit_xyz[3:6, :]
