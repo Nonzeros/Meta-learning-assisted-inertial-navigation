@@ -93,7 +93,7 @@ def intelligent_dynamic_module(
 
     # 对速度进行积分
     # 矩形积分
-    pt = (vt_minus1 + vt) * deltat / 2 + pt_minus1
+    pt =  vt * deltat + pt_minus1
     dynamic_pos = pt
     # 返回更多信息用于日志记录
     return dynamic_pos, dynamic_P, dynamic_a, px, pw, neural_f, vt, v_dot

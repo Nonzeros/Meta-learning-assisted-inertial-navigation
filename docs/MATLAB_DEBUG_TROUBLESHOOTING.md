@@ -140,3 +140,4 @@ eng.eval("dbstop if error", nargout=0)
 最实用的方法是**使用 fprintf 输出调试信息**，这样可以直接在 Python 控制台看到变量的值，无需交互式调试。
 
 
+

@@ -38,9 +38,9 @@ def traditional_dynamic_module_baseline(
     # 加速度计算
     v_dot = g + (Ri @ fT + traditional_fa) / m0
 
-    # 梯形积分
+    # 矩形积分
     vt = v_dot * deltat + vt_minus1
-    pt = (vt_minus1 + vt) * deltat / 2 + pt_minus1
+    pt = vt * deltat + pt_minus1
 
     return pt, traditional_fa, vt, v_dot
 
@@ -79,9 +79,9 @@ def traditional_dynamic_module_linear_drag(
     # 加速度计算
     v_dot = g + (Ri @ fT + traditional_fa) / m0
 
-    # 梯形积分
+    # 矩形积分
     vt = v_dot * deltat + vt_minus1
-    pt = (vt_minus1 + vt) * deltat / 2 + pt_minus1
+    pt = vt * deltat + pt_minus1
 
     return pt, traditional_fa, vt, v_dot
 
@@ -147,9 +147,9 @@ def traditional_dynamic_module_linear_regression(
     # 加速度计算
     v_dot = g + (Ri @ fT + traditional_fa) / m0
 
-    # 梯形积分
+    # 矩形积分
     vt = v_dot * deltat + vt_minus1
-    pt = (vt_minus1 + vt) * deltat / 2 + pt_minus1
+    pt = vt * deltat + pt_minus1
 
     return pt, traditional_fa, vt, v_dot, W
 

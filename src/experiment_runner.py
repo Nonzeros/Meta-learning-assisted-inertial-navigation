@@ -167,7 +167,7 @@ def adaptive_r_update_zheng_raukf(
         R_new = np.diag(R_new_diag)
 
         # 16. 将更新后的R设置回MATLAB的kf对象
-        eng.setfield(matlab_kf, "Rk", matlab.double(R_new.tolist()), nargout=0)
+        #eng.setfield(matlab_kf, "Rk", matlab.double(R_new.tolist()), nargout=0)
 
         return R_new, True
 
@@ -412,7 +412,7 @@ def run_single_experiment(
         # 启用后，当 MATLAB 函数出错时，会自动停在错误处，你可以在 MATLAB IDE 中调试
         # 注意：启用调试模式后，Python 会等待 MATLAB 调试完成
         # ENABLE_MATLAB_DEBUG = True  # 设置为 True 以启用调试
-        ENABLE_MATLAB_DEBUG = False  # 默认关闭，需要调试时改为 True
+        ENABLE_MATLAB_DEBUG = True  # 默认关闭，需要调试时改为 True
         
         if ENABLE_MATLAB_DEBUG:
             print("  [调试] 正在启用 MATLAB 调试模式...")
@@ -688,7 +688,9 @@ def run_single_experiment(
         imu_length = imu.shape[0]
         validation_data_length = len(ts) - adapt_end_index
         # 循环次数取imu长度和validation_data_length的较小值，确保不会越界
-        loops = min(imu_length, validation_data_length)
+        # loops = min(imu_length, validation_data_length)
+        # 适应阶段为2s（adapt_end_index=100，100*0.02=2s），计算时间为10s（500*0.02=10s）
+        loops = 1500
         first_index = adapt_end_index
         
         ukf_avps = np.empty((10, loops + 1))
@@ -1833,23 +1835,38 @@ def run_single_experiment(
                 eng_baseline.llh2xyz_subfun(matlab.double(ukf_avps_baseline[:, i].tolist()))
             )
         
-        validation_length = len(ts) - adapt_end_index
-        y_real_data_total = np.empty((10, validation_length))
-        y_real_data_total[3:6, 0:validation_length] = real_v_row[
-            :, adapt_end_index : adapt_end_index + validation_length
+        # validation_length应该等于实际循环次数loops，而不是全部剩余数据长度
+        # 这样可以确保RMSE计算时真实值和计算值的数据长度一致
+        validation_length_available = len(ts) - adapt_end_index
+        validation_length = min(loops, validation_length_available)  # 使用实际循环次数
+        
+        # 真实值数据的长度应该等于计算值数据的长度
+        # 计算值数据：ukf_avps大小是(10, loops + 1)，排除最后exclude_last个点后，实际长度是loops + 1 - exclude_last
+        # 真实值数据：应该取loops + 1个点（包含初始状态），然后也排除最后exclude_last个点
+        validation_length_with_init = loops + 1  # 包含初始状态，与ukf_avps保持一致
+        validation_length_actual = min(validation_length_with_init, validation_length_available)
+        
+        y_real_data_total = np.empty((10, validation_length_actual))
+        y_real_data_total[3:6, 0:validation_length_actual] = real_v_row[
+            :, adapt_end_index : adapt_end_index + validation_length_actual
         ]
-        y_real_data_total[6:9, 0:validation_length] = real_p_row[
-            :, adapt_end_index : adapt_end_index + validation_length
+        y_real_data_total[6:9, 0:validation_length_actual] = real_p_row[
+            :, adapt_end_index : adapt_end_index + validation_length_actual
         ]
         
         real_time_start_index = adapt_end_index
-        real_time_end_index = adapt_end_index + validation_length
-        real_time = ts[real_time_start_index:real_time_end_index]
+        real_time_end_index = adapt_end_index + validation_length_actual
+        real_time_full = ts[real_time_start_index:real_time_end_index]
         
+        # 计算值数据：排除最后几个点
+        # ukf_avps的大小是(10, loops + 1)，所以ukf_avps_xyz的大小也是(9, loops + 1)
         exclude_last = min(5, ukf_avps_xyz.shape[1] - 1)
         ukf_time = ukf_avps[9, 0 : -exclude_last if exclude_last > 0 else None]
         ukf_vel_xyz = ukf_avps_xyz[3:6, 0 : -exclude_last if exclude_last > 0 else None]
         ukf_pos_xyz = ukf_avps_xyz[6:9, 0 : -exclude_last if exclude_last > 0 else None]
+        
+        # 真实值数据：也排除最后几个点，与计算值数据长度保持一致
+        real_time = real_time_full[0 : -exclude_last if exclude_last > 0 else None]
         
         # Baseline模型的时间和数据
         baseline_exclude_last = min(5, baseline_avps_xyz.shape[1] - 1)
@@ -1906,8 +1923,9 @@ def run_single_experiment(
         pure_ins_vel_xyz = pure_avps_xyz[3:6, :]
         pure_ins_pos_xyz = pure_avps_xyz[6:9, :]
         
-        real_vel_xyz = y_real_data_total[3:6, 0:validation_length]
-        real_pos_xyz = y_real_data_total[6:9, 0:validation_length]
+        # 真实值数据：也排除最后几个点，与计算值数据长度保持一致
+        real_vel_xyz = y_real_data_total[3:6, 0 : -exclude_last if exclude_last > 0 else None]
+        real_pos_xyz = y_real_data_total[6:9, 0 : -exclude_last if exclude_last > 0 else None]
         
         def calculate_rmse(calc_time, calc_data, real_time, real_data):
             time_min = max(calc_time.min(), real_time.min())

@@ -48,7 +48,8 @@ real_ap(:,7) = real_pav_att(:,10);
 real_ap = real_ap(start_index:end,:);
 [imu, avp0] = ap2imu(real_ap, 0.02);
 % 惯导输出添加误差
-imuerr = imuerrset(10, 1000, 0.0001, 0.0001);
+%imuerr = imuerrset(10, 1000, 0.0001, 0.0001);
+imuerr = imuerrset(5, 3000, 0.05, 100);
 % imuerr = imuerrset(0, 0, 0.15, 20,1440,3.6); % 武汉大学文章对应的MEMS惯导静态参数
 % imuerr = imuerrset(10, 10000, 0.01, 0.01); % 某文献参数
 % imuerr = imuerrset(0.3, 100, 0.3, 50);

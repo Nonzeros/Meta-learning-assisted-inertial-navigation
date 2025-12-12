@@ -9,7 +9,7 @@ model:
 # 滤波器类型配置
 filter:
   type: 2  # 1=卡尔曼滤波(KF), 2=粒子滤波(PF)
-  numPar: 30  # 粒子滤波的粒子数量（仅当type=2时使用）
+  numPar: 800  # 粒子滤波的粒子数量（仅当type=2时使用）
   lambda1: 0.1  # 阻尼系数（用于粒子滤波和卡尔曼滤波的在线适应）
 
 # 粒子滤波参数（仅当filter.type=2时使用）
@@ -27,22 +27,22 @@ matlab_ukf:
   # IMU误差参数（用于设置Q矩阵）
   # imuerrset(eb, db, web, wdb, ...)
   imu_err:
-    eb: 10  # 陀螺常值偏置 (deg/h)
-    db: 1000  # 加速度计常值偏置 (ug)
-    web: 0.0001  # 角随机游走 (deg/sqrt(h)) - 用于Q矩阵
-    wdb: 0.0001  # 速度随机游走 (ug/sqrt(Hz)) - 用于Q矩阵
+    eb: 5  # 陀螺常值偏置 (deg/h)
+    db: 3000  # 加速度计常值偏置 (ug)
+    web: 0.05  # 角随机游走 (deg/sqrt(h)) - 用于Q矩阵
+    wdb: 100  # 速度随机游走 (ug/sqrt(Hz)) - 用于Q矩阵
   
   # AVP初始误差参数（用于设置P0矩阵）
   # avperrset(phi, dvn, dpos)
   avp_err:
-    phi: [0.1, 0.1, 0.1]  # 平台失准角 (arcmin) - 三个方向
-    dvn: 0.1  # 速度误差 (m/s)
+    phi: [0.05, 0.05, 0.05]  # 平台失准角 (arcmin) - 三个方向
+    dvn: 0.05  # 速度误差 (m/s)
     dpos: [1, 1, 3]  # 位置误差 [dlat, dlon, dhgt] (m)
   
   # 位置误差参数（用于设置R矩阵）
   # poserrset([rx, ry, rz])
   # 注意：pos_err 会通过 poserrset 设置 rk，然后 kfinit 会自动设置 kf.Rk = diag(rk)^2
-  pos_err: [0.01, 0.01, 0.03]  # 位置误差 (m)
+  pos_err: [0.0001, 0.0001, 0.0002]  # 位置误差 (m)
   
   # R矩阵（可选，如果提供则覆盖poserrset设置的Rk）
   # 如果不需要覆盖，可以注释掉或删除此配置，让 pos_err 设置的 rk 生效

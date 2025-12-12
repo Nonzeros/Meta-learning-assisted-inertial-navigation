@@ -1111,7 +1111,37 @@ def plot_time_series(log_df, run_name: str):
                         y=log_df_plot.loc[valid_mask, baseline_ukf_col],
                         name="零气动力模型UKF融合",
                         mode="lines",
-                        line=dict(color="#F77F00", width=2, dash="dashdot"),
+                        line=dict(color="#FF6B35", width=2, dash="dashdot"),
+                    )
+                )
+
+        # 线性阻力模型UKF融合位置 - 使用日志文件中的linear_drag_ukf_fused_px/py/pz
+        linear_drag_ukf_col = f"linear_drag_ukf_fused_p{dir}"
+        if linear_drag_ukf_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[linear_drag_ukf_col]) & (log_df_plot[linear_drag_ukf_col] != 0)
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, linear_drag_ukf_col],
+                        name="线性阻力模型UKF融合",
+                        mode="lines",
+                        line=dict(color="#9B59B6", width=2, dash="dot"),
+                    )
+                )
+
+        # 线性拟合模型UKF融合位置 - 使用日志文件中的fit_ukf_fused_px/py/pz
+        fit_ukf_col = f"fit_ukf_fused_p{dir}"
+        if fit_ukf_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[fit_ukf_col]) & (log_df_plot[fit_ukf_col] != 0)
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, fit_ukf_col],
+                        name="线性拟合模型UKF融合",
+                        mode="lines",
+                        line=dict(color="#00CED1", width=2, dash="dash"),
                     )
                 )
 
@@ -1192,7 +1222,37 @@ def plot_time_series(log_df, run_name: str):
                         y=log_df_plot.loc[valid_mask, baseline_ukf_col],
                         name="零气动力模型UKF融合",
                         mode="lines",
-                        line=dict(color="#F77F00", width=2, dash="dashdot"),
+                        line=dict(color="#FF6B35", width=2, dash="dashdot"),
+                    )
+                )
+
+        # 线性阻力模型UKF融合速度 - 使用日志文件中的linear_drag_ukf_fused_vx/vy/vz
+        linear_drag_ukf_col = f"linear_drag_ukf_fused_v{dir}"
+        if linear_drag_ukf_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[linear_drag_ukf_col])
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, linear_drag_ukf_col],
+                        name="线性阻力模型UKF融合",
+                        mode="lines",
+                        line=dict(color="#9B59B6", width=2, dash="dot"),
+                    )
+                )
+
+        # 线性拟合模型UKF融合速度 - 使用日志文件中的fit_ukf_fused_vx/vy/vz
+        fit_ukf_col = f"fit_ukf_fused_v{dir}"
+        if fit_ukf_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[fit_ukf_col])
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, fit_ukf_col],
+                        name="线性拟合模型UKF融合",
+                        mode="lines",
+                        line=dict(color="#00CED1", width=2, dash="dash"),
                     )
                 )
 
@@ -1276,7 +1336,37 @@ def plot_time_series(log_df, run_name: str):
                         y=log_df_plot.loc[valid_mask, baseline_ukf_col],
                         name="零气动力模型UKF融合",
                         mode="lines",
-                        line=dict(color="#F77F00", width=2, dash="dashdot"),
+                        line=dict(color="#FF6B35", width=2, dash="dashdot"),
+                    )
+                )
+
+        # 线性阻力模型UKF融合姿态 - 使用日志文件中的linear_drag_ukf_fused_att_x/y/z
+        linear_drag_ukf_col = f"linear_drag_ukf_fused_att_{dir}"
+        if linear_drag_ukf_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[linear_drag_ukf_col])
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, linear_drag_ukf_col],
+                        name="线性阻力模型UKF融合",
+                        mode="lines",
+                        line=dict(color="#9B59B6", width=2, dash="dot"),
+                    )
+                )
+
+        # 线性拟合模型UKF融合姿态 - 使用日志文件中的fit_ukf_fused_att_x/y/z
+        fit_ukf_col = f"fit_ukf_fused_att_{dir}"
+        if fit_ukf_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[fit_ukf_col])
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, fit_ukf_col],
+                        name="线性拟合模型UKF融合",
+                        mode="lines",
+                        line=dict(color="#00CED1", width=2, dash="dash"),
                     )
                 )
 
@@ -2345,12 +2435,42 @@ def plot_aerodynamic_force(log_df, run_name: str):
                         y=log_df_plot.loc[valid_mask, baseline_col],
                         name="零气动力模型预测",
                         mode="lines",
-                        line=dict(color="#F77F00", width=2, dash="dashdot"),
+                        line=dict(color="#FF6B35", width=2, dash="dashdot"),
+                    )
+                )
+
+        # 线性阻力模型预测气动力 - linear_drag_fa_x/y/z
+        linear_drag_col = f"linear_drag_fa_{dir}"
+        if linear_drag_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[linear_drag_col])
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, linear_drag_col],
+                        name="线性阻力模型预测",
+                        mode="lines",
+                        line=dict(color="#8B00FF", width=2, dash="dot"),
+                    )
+                )
+
+        # 线性拟合模型预测气动力 - fit_fa_x/y/z
+        fit_col = f"fit_fa_{dir}"
+        if fit_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[fit_col])
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, fit_col],
+                        name="线性拟合模型预测",
+                        mode="lines",
+                        line=dict(color="#00CED1", width=2, dash="dash"),
                     )
                 )
 
         fig.update_layout(
-            title=f"气动力{label}方向对比（元学习模型 vs 零气动力模型 vs 真实值）",
+            title=f"气动力{label}方向对比（所有模型 vs 真实值）",
             xaxis_title="时间 (s)",
             yaxis_title=f"气动力{label} (N)",
             height=400,
@@ -2359,7 +2479,7 @@ def plot_aerodynamic_force(log_df, run_name: str):
         # 应用科研绘图样式
         fig = apply_scientific_style(
             fig,
-            title=f"气动力{label}方向对比（neural_f vs real_fa）",
+            title=f"气动力{label}方向对比（所有模型 vs 真实值）",
             xlabel="时间 (s)",
             ylabel=f"气动力{label} (N)",
         )
@@ -3807,16 +3927,34 @@ def main():
             )
 
             # RMSE对比部分
-            st.subheader("📊 RMSE对比（UKF vs 纯惯导）")
+            st.subheader("📊 RMSE对比（所有模型）")
 
-            # 提取RMSE指标
+            # 提取RMSE指标（所有5个模型）
             rmse_metrics = {
                 "速度RMSE": {
-                    "UKF": {
+                    "元学习模型": {
                         "东向": selected_row.get("metric_ukf_vel_rmse_east", None),
                         "北向": selected_row.get("metric_ukf_vel_rmse_north", None),
                         "天向": selected_row.get("metric_ukf_vel_rmse_up", None),
                         "总RMSE": selected_row.get("metric_ukf_vel_rmse_total", None),
+                    },
+                    "零气动力模型": {
+                        "东向": selected_row.get("metric_baseline_vel_rmse_east", None),
+                        "北向": selected_row.get("metric_baseline_vel_rmse_north", None),
+                        "天向": selected_row.get("metric_baseline_vel_rmse_up", None),
+                        "总RMSE": selected_row.get("metric_baseline_vel_rmse_total", None),
+                    },
+                    "线性阻力模型": {
+                        "东向": selected_row.get("metric_linear_drag_vel_rmse_east", None),
+                        "北向": selected_row.get("metric_linear_drag_vel_rmse_north", None),
+                        "天向": selected_row.get("metric_linear_drag_vel_rmse_up", None),
+                        "总RMSE": selected_row.get("metric_linear_drag_vel_rmse_total", None),
+                    },
+                    "线性拟合模型": {
+                        "东向": selected_row.get("metric_fit_vel_rmse_east", None),
+                        "北向": selected_row.get("metric_fit_vel_rmse_north", None),
+                        "天向": selected_row.get("metric_fit_vel_rmse_up", None),
+                        "总RMSE": selected_row.get("metric_fit_vel_rmse_total", None),
                     },
                     "纯惯导": {
                         "东向": selected_row.get("metric_pure_ins_vel_rmse_east", None),
@@ -3830,11 +3968,29 @@ def main():
                     },
                 },
                 "位置RMSE": {
-                    "UKF": {
+                    "元学习模型": {
                         "东向": selected_row.get("metric_ukf_pos_rmse_east", None),
                         "北向": selected_row.get("metric_ukf_pos_rmse_north", None),
                         "天向": selected_row.get("metric_ukf_pos_rmse_up", None),
                         "总RMSE": selected_row.get("metric_ukf_pos_rmse_total", None),
+                    },
+                    "零气动力模型": {
+                        "东向": selected_row.get("metric_baseline_pos_rmse_east", None),
+                        "北向": selected_row.get("metric_baseline_pos_rmse_north", None),
+                        "天向": selected_row.get("metric_baseline_pos_rmse_up", None),
+                        "总RMSE": selected_row.get("metric_baseline_pos_rmse_total", None),
+                    },
+                    "线性阻力模型": {
+                        "东向": selected_row.get("metric_linear_drag_pos_rmse_east", None),
+                        "北向": selected_row.get("metric_linear_drag_pos_rmse_north", None),
+                        "天向": selected_row.get("metric_linear_drag_pos_rmse_up", None),
+                        "总RMSE": selected_row.get("metric_linear_drag_pos_rmse_total", None),
+                    },
+                    "线性拟合模型": {
+                        "东向": selected_row.get("metric_fit_pos_rmse_east", None),
+                        "北向": selected_row.get("metric_fit_pos_rmse_north", None),
+                        "天向": selected_row.get("metric_fit_pos_rmse_up", None),
+                        "总RMSE": selected_row.get("metric_fit_pos_rmse_total", None),
                     },
                     "纯惯导": {
                         "东向": selected_row.get("metric_pure_ins_pos_rmse_east", None),
@@ -3854,68 +4010,67 @@ def main():
 
             with col1:
                 st.markdown("### 速度RMSE对比")
+                # 创建包含所有模型的数据表
                 vel_data = []
-                for direction in ["东向", "北向", "天向", "总RMSE"]:
-                    ukf_val = rmse_metrics["速度RMSE"]["UKF"][direction]
-                    pure_val = rmse_metrics["速度RMSE"]["纯惯导"][direction]
-                    if ukf_val is not None and pure_val is not None:
-                        improvement = (
-                            ((pure_val - ukf_val) / pure_val * 100)
-                            if pure_val != 0
-                            else 0
-                        )
-                        vel_data.append(
-                            {
-                                "方向": direction,
-                                "UKF (m/s)": f"{ukf_val:.4f}",
-                                "纯惯导 (m/s)": f"{pure_val:.4f}",
-                                "改善 (%)": f"{improvement:.2f}%",
-                            }
-                        )
+                directions = ["东向", "北向", "天向", "总RMSE"]
+                models = ["元学习模型", "零气动力模型", "线性阻力模型", "线性拟合模型", "纯惯导"]
+                
+                for direction in directions:
+                    row_data = {"方向": direction}
+                    for model in models:
+                        val = rmse_metrics["速度RMSE"][model][direction]
+                        if val is not None:
+                            row_data[model] = f"{val:.4f}"
+                        else:
+                            row_data[model] = "N/A"
+                    vel_data.append(row_data)
 
                 if vel_data:
                     vel_df = pd.DataFrame(vel_data)
                     st.dataframe(vel_df, use_container_width=True, hide_index=True)
 
-                    # 速度RMSE对比图
+                    # 速度RMSE对比图（所有模型）
                     fig_vel = go.Figure()
-                    directions = ["东向", "北向", "天向", "总RMSE"]
-                    ukf_vals = [
-                        rmse_metrics["速度RMSE"]["UKF"][d]
-                        for d in directions
-                        if rmse_metrics["速度RMSE"]["UKF"][d] is not None
-                    ]
-                    pure_vals = [
-                        rmse_metrics["速度RMSE"]["纯惯导"][d]
-                        for d in directions
-                        if rmse_metrics["速度RMSE"]["纯惯导"][d] is not None
-                    ]
-                    valid_directions = [
-                        d
-                        for d in directions
-                        if rmse_metrics["速度RMSE"]["UKF"][d] is not None
-                        and rmse_metrics["速度RMSE"]["纯惯导"][d] is not None
-                    ]
+                    directions_plot = ["东向", "北向", "天向", "总RMSE"]
+                    model_colors = {
+                        "元学习模型": "#2E86AB",
+                        "零气动力模型": "#FF6B35",
+                        "线性阻力模型": "#8B00FF",
+                        "线性拟合模型": "#00CED1",
+                        "纯惯导": "#DC143C",
+                    }
+                    
+                    # 确定有效的方向（至少有一个模型有数据）
+                    valid_directions = []
+                    for d in directions_plot:
+                        has_data = False
+                        for model in models:
+                            if rmse_metrics["速度RMSE"][model][d] is not None:
+                                has_data = True
+                                break
+                        if has_data:
+                            valid_directions.append(d)
+                    
+                    # 为每个模型添加数据
+                    for model in models:
+                        vals = [
+                            rmse_metrics["速度RMSE"][model][d]
+                            for d in valid_directions
+                            if rmse_metrics["速度RMSE"][model][d] is not None
+                        ]
+                        if vals:
+                            fig_vel.add_trace(
+                                go.Bar(
+                                    x=valid_directions[:len(vals)],
+                                    y=vals,
+                                    name=model,
+                                    marker_color=model_colors[model],
+                                )
+                            )
 
-                    if ukf_vals and pure_vals:
-                        fig_vel.add_trace(
-                            go.Bar(
-                                x=valid_directions,
-                                y=ukf_vals,
-                                name="UKF",
-                                marker_color="#2E86AB",
-                            )
-                        )
-                        fig_vel.add_trace(
-                            go.Bar(
-                                x=valid_directions,
-                                y=pure_vals,
-                                name="纯惯导",
-                                marker_color="#F24236",
-                            )
-                        )
+                    if len(fig_vel.data) > 0:
                         fig_vel.update_layout(
-                            title="速度RMSE对比",
+                            title="速度RMSE对比（所有模型）",
                             xaxis_title="方向",
                             yaxis_title="RMSE (m/s)",
                             barmode="group",
@@ -3928,68 +4083,67 @@ def main():
 
             with col2:
                 st.markdown("### 位置RMSE对比")
+                # 创建包含所有模型的数据表
                 pos_data = []
-                for direction in ["东向", "北向", "天向", "总RMSE"]:
-                    ukf_val = rmse_metrics["位置RMSE"]["UKF"][direction]
-                    pure_val = rmse_metrics["位置RMSE"]["纯惯导"][direction]
-                    if ukf_val is not None and pure_val is not None:
-                        improvement = (
-                            ((pure_val - ukf_val) / pure_val * 100)
-                            if pure_val != 0
-                            else 0
-                        )
-                        pos_data.append(
-                            {
-                                "方向": direction,
-                                "UKF (m)": f"{ukf_val:.4f}",
-                                "纯惯导 (m)": f"{pure_val:.4f}",
-                                "改善 (%)": f"{improvement:.2f}%",
-                            }
-                        )
+                directions = ["东向", "北向", "天向", "总RMSE"]
+                models = ["元学习模型", "零气动力模型", "线性阻力模型", "线性拟合模型", "纯惯导"]
+                
+                for direction in directions:
+                    row_data = {"方向": direction}
+                    for model in models:
+                        val = rmse_metrics["位置RMSE"][model][direction]
+                        if val is not None:
+                            row_data[model] = f"{val:.4f}"
+                        else:
+                            row_data[model] = "N/A"
+                    pos_data.append(row_data)
 
                 if pos_data:
                     pos_df = pd.DataFrame(pos_data)
                     st.dataframe(pos_df, use_container_width=True, hide_index=True)
 
-                    # 位置RMSE对比图
+                    # 位置RMSE对比图（所有模型）
                     fig_pos = go.Figure()
-                    directions = ["东向", "北向", "天向", "总RMSE"]
-                    ukf_vals = [
-                        rmse_metrics["位置RMSE"]["UKF"][d]
-                        for d in directions
-                        if rmse_metrics["位置RMSE"]["UKF"][d] is not None
-                    ]
-                    pure_vals = [
-                        rmse_metrics["位置RMSE"]["纯惯导"][d]
-                        for d in directions
-                        if rmse_metrics["位置RMSE"]["纯惯导"][d] is not None
-                    ]
-                    valid_directions = [
-                        d
-                        for d in directions
-                        if rmse_metrics["位置RMSE"]["UKF"][d] is not None
-                        and rmse_metrics["位置RMSE"]["纯惯导"][d] is not None
-                    ]
+                    directions_plot = ["东向", "北向", "天向", "总RMSE"]
+                    model_colors = {
+                        "元学习模型": "#2E86AB",
+                        "零气动力模型": "#FF6B35",
+                        "线性阻力模型": "#8B00FF",
+                        "线性拟合模型": "#00CED1",
+                        "纯惯导": "#DC143C",
+                    }
+                    
+                    # 确定有效的方向（至少有一个模型有数据）
+                    valid_directions = []
+                    for d in directions_plot:
+                        has_data = False
+                        for model in models:
+                            if rmse_metrics["位置RMSE"][model][d] is not None:
+                                has_data = True
+                                break
+                        if has_data:
+                            valid_directions.append(d)
+                    
+                    # 为每个模型添加数据
+                    for model in models:
+                        vals = [
+                            rmse_metrics["位置RMSE"][model][d]
+                            for d in valid_directions
+                            if rmse_metrics["位置RMSE"][model][d] is not None
+                        ]
+                        if vals:
+                            fig_pos.add_trace(
+                                go.Bar(
+                                    x=valid_directions[:len(vals)],
+                                    y=vals,
+                                    name=model,
+                                    marker_color=model_colors[model],
+                                )
+                            )
 
-                    if ukf_vals and pure_vals:
-                        fig_pos.add_trace(
-                            go.Bar(
-                                x=valid_directions,
-                                y=ukf_vals,
-                                name="UKF",
-                                marker_color="#2E86AB",
-                            )
-                        )
-                        fig_pos.add_trace(
-                            go.Bar(
-                                x=valid_directions,
-                                y=pure_vals,
-                                name="纯惯导",
-                                marker_color="#F24236",
-                            )
-                        )
+                    if len(fig_pos.data) > 0:
                         fig_pos.update_layout(
-                            title="位置RMSE对比",
+                            title="位置RMSE对比（所有模型）",
                             xaxis_title="方向",
                             yaxis_title="RMSE (m)",
                             barmode="group",
@@ -4000,62 +4154,137 @@ def main():
                 else:
                     st.info("位置RMSE数据不可用")
 
-            # 气动力RMSE显示
-            st.markdown("### 气动力RMSE")
-            col_fa1, col_fa2 = st.columns(2)
-
-            with col_fa1:
-                st.markdown("#### 气动力RMSE（neural_f vs real_fa）")
-                fa_data = []
-                for direction in ["X", "Y", "Z", "总RMSE"]:
-                    metric_key = (
-                        f"metric_fa_rmse_{direction.lower()}"
-                        if direction != "总RMSE"
-                        else "metric_fa_rmse_total"
-                    )
-                    if direction == "X":
-                        metric_key = "metric_fa_rmse_x"
-                    elif direction == "Y":
-                        metric_key = "metric_fa_rmse_y"
-                    elif direction == "Z":
-                        metric_key = "metric_fa_rmse_z"
+            # 气动力RMSE显示（所有模型）
+            st.markdown("### 气动力RMSE对比（所有模型）")
+            
+            # 创建包含所有模型的气动力RMSE数据表
+            fa_rmse_data = []
+            directions = ["X", "Y", "Z", "总RMSE"]
+            models_fa = ["元学习模型", "零气动力模型", "线性阻力模型", "线性拟合模型"]
+            
+            # 定义metric key映射
+            metric_keys_map = {
+                "元学习模型": {
+                    "X": "metric_fa_rmse_x",
+                    "Y": "metric_fa_rmse_y",
+                    "Z": "metric_fa_rmse_z",
+                    "总RMSE": "metric_fa_rmse_total",
+                },
+                "零气动力模型": {
+                    "X": "metric_baseline_fa_rmse_x",
+                    "Y": "metric_baseline_fa_rmse_y",
+                    "Z": "metric_baseline_fa_rmse_z",
+                    "总RMSE": "metric_baseline_fa_rmse_total",
+                },
+                "线性阻力模型": {
+                    "X": "metric_linear_drag_fa_rmse_x",
+                    "Y": "metric_linear_drag_fa_rmse_y",
+                    "Z": "metric_linear_drag_fa_rmse_z",
+                    "总RMSE": "metric_linear_drag_fa_rmse_total",
+                },
+                "线性拟合模型": {
+                    "X": "metric_fit_fa_rmse_x",
+                    "Y": "metric_fit_fa_rmse_y",
+                    "Z": "metric_fit_fa_rmse_z",
+                    "总RMSE": "metric_fit_fa_rmse_total",
+                },
+            }
+            
+            for direction in directions:
+                row_data = {"方向": direction}
+                for model in models_fa:
+                    metric_key = metric_keys_map[model][direction]
+                    val = selected_row.get(metric_key, None)
+                    if val is not None:
+                        row_data[model] = f"{val:.6f}"
                     else:
-                        metric_key = "metric_fa_rmse_total"
+                        row_data[model] = "N/A"
+                fa_rmse_data.append(row_data)
 
-                    fa_val = selected_row.get(metric_key, None)
-                    if fa_val is not None:
-                        fa_data.append({"方向": direction, "RMSE (N)": f"{fa_val:.6f}"})
-
-                if fa_data:
-                    fa_df = pd.DataFrame(fa_data)
-                    st.dataframe(fa_df, use_container_width=True, hide_index=True)
-                else:
-                    st.info("气动力RMSE数据不可用")
-
-            with col_fa2:
-                st.markdown("#### 总力RMSE（neural_f_total vs real_fa_total）")
-                fa_total_data = []
-                for direction in ["X", "Y", "Z", "总RMSE"]:
-                    if direction == "X":
-                        metric_key = "metric_neural_fa_total_rmse_x"
-                    elif direction == "Y":
-                        metric_key = "metric_neural_fa_total_rmse_y"
-                    elif direction == "Z":
-                        metric_key = "metric_neural_fa_total_rmse_z"
-                    else:
-                        metric_key = "metric_neural_fa_total_rmse_total"
-
-                    fa_total_val = selected_row.get(metric_key, None)
-                    if fa_total_val is not None:
-                        fa_total_data.append(
-                            {"方向": direction, "RMSE (N)": f"{fa_total_val:.6f}"}
+            if fa_rmse_data:
+                fa_rmse_df = pd.DataFrame(fa_rmse_data)
+                st.dataframe(fa_rmse_df, use_container_width=True, hide_index=True)
+                
+                # 气动力RMSE对比图（所有模型）
+                fig_fa_rmse = go.Figure()
+                model_colors_fa = {
+                    "元学习模型": "#2E86AB",
+                    "零气动力模型": "#FF6B35",
+                    "线性阻力模型": "#8B00FF",
+                    "线性拟合模型": "#00CED1",
+                }
+                
+                # 确定有效的方向（至少有一个模型有数据）
+                valid_directions_fa = []
+                for d in directions:
+                    has_data = False
+                    for model in models_fa:
+                        metric_key = metric_keys_map[model][d]
+                        if selected_row.get(metric_key, None) is not None:
+                            has_data = True
+                            break
+                    if has_data:
+                        valid_directions_fa.append(d)
+                
+                # 为每个模型添加数据
+                for model in models_fa:
+                    vals = []
+                    for d in valid_directions_fa:
+                        metric_key = metric_keys_map[model][d]
+                        val = selected_row.get(metric_key, None)
+                        if val is not None:
+                            vals.append(val)
+                    
+                    if vals:
+                        fig_fa_rmse.add_trace(
+                            go.Bar(
+                                x=valid_directions_fa[:len(vals)],
+                                y=vals,
+                                name=model,
+                                marker_color=model_colors_fa[model],
+                            )
                         )
 
-                if fa_total_data:
-                    fa_total_df = pd.DataFrame(fa_total_data)
-                    st.dataframe(fa_total_df, use_container_width=True, hide_index=True)
+                if len(fig_fa_rmse.data) > 0:
+                    fig_fa_rmse.update_layout(
+                        title="气动力RMSE对比（所有模型）",
+                        xaxis_title="方向",
+                        yaxis_title="RMSE (N)",
+                        barmode="group",
+                        height=400,
+                        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+                    )
+                    st.plotly_chart(fig_fa_rmse, use_container_width=True)
+            else:
+                st.info("气动力RMSE数据不可用")
+            
+            # 保留原有的总力RMSE显示
+            st.markdown("---")
+            st.markdown("### 总力RMSE（neural_f_total vs real_fa_total）")
+            
+            st.markdown("#### 总力RMSE（neural_f_total vs real_fa_total）")
+            fa_total_data = []
+            for direction in ["X", "Y", "Z", "总RMSE"]:
+                if direction == "X":
+                    metric_key = "metric_neural_fa_total_rmse_x"
+                elif direction == "Y":
+                    metric_key = "metric_neural_fa_total_rmse_y"
+                elif direction == "Z":
+                    metric_key = "metric_neural_fa_total_rmse_z"
                 else:
-                    st.info("总力RMSE数据不可用")
+                    metric_key = "metric_neural_fa_total_rmse_total"
+
+                fa_total_val = selected_row.get(metric_key, None)
+                if fa_total_val is not None:
+                    fa_total_data.append(
+                        {"方向": direction, "RMSE (N)": f"{fa_total_val:.6f}"}
+                    )
+
+            if fa_total_data:
+                fa_total_df = pd.DataFrame(fa_total_data)
+                st.dataframe(fa_total_df, use_container_width=True, hide_index=True)
+            else:
+                st.info("总力RMSE数据不可用")
 
             st.markdown("---")
 
