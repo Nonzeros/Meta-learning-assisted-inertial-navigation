@@ -412,7 +412,7 @@ def run_single_experiment(
         # 启用后，当 MATLAB 函数出错时，会自动停在错误处，你可以在 MATLAB IDE 中调试
         # 注意：启用调试模式后，Python 会等待 MATLAB 调试完成
         # ENABLE_MATLAB_DEBUG = True  # 设置为 True 以启用调试
-        ENABLE_MATLAB_DEBUG = True  # 默认关闭，需要调试时改为 True
+        ENABLE_MATLAB_DEBUG = False  # 默认关闭，需要调试时改为 True
         
         if ENABLE_MATLAB_DEBUG:
             print("  [调试] 正在启用 MATLAB 调试模式...")
@@ -516,8 +516,8 @@ def run_single_experiment(
         matlab_ukf_config = filter_config.get("matlab_ukf", {})
         imu_err = matlab_ukf_config.get("imu_err", {})
         avp_err = matlab_ukf_config.get("avp_err", {})
-        pos_err = matlab_ukf_config.get("pos_err", [0.001, 0.001, 0.001])
-        # Rk矩阵通过pos_err设置，不再使用Rk_diag覆盖
+        vel_err = matlab_ukf_config.get("vel_err", [0.1, 0.1, 0.1])
+        # Rk矩阵通过vel_err设置（速度观测），直接使用速度误差值
         
         # 准备MATLAB UKF初始化参数
         imu_err_params = [
@@ -547,20 +547,20 @@ def run_single_experiment(
                 [dpos_err] if not hasattr(dpos_err, "__iter__") else list(dpos_err)
             )
         
-        if isinstance(pos_err, np.ndarray):
-            pos_err = pos_err.tolist()
-        elif not isinstance(pos_err, (list, tuple)):
-            pos_err = [pos_err] if not hasattr(pos_err, "__iter__") else list(pos_err)
+        if isinstance(vel_err, np.ndarray):
+            vel_err = vel_err.tolist()
+        elif not isinstance(vel_err, (list, tuple)):
+            vel_err = [vel_err] if not hasattr(vel_err, "__iter__") else list(vel_err)
         
         # UKF初始化（元学习模型，使用eng_intelligent）
-        # Rk矩阵通过pos_err设置：rk = poserrset(pos_err)，然后kfinit自动设置 kf.Rk = diag(rk)^2
+        # Rk矩阵通过vel_err设置（速度观测）：rk = vel_err，然后kfinit自动设置 kf.Rk = diag(rk)^2
         matlab_kf, matlab_ins = eng_intelligent.SINS_dynamic_UKF153_init(
             matlab.double(avp0_change.tolist()),
             matlab.double(imu_err_params),
             matlab.double(phi_err),
             matlab.double(dvn_err),
             matlab.double(dpos_err),
-            matlab.double(pos_err),
+            matlab.double(vel_err),
             nargout=2,
         )
         
@@ -588,7 +588,7 @@ def run_single_experiment(
         
         # 保存初始R矩阵的对角线元素（用于自适应调整时的范围限制）
         initial_R_diag = (
-            np.diag(ukf_Rk) if ukf_Rk is not None else np.array(pos_err) ** 2
+            np.diag(ukf_Rk) if ukf_Rk is not None else np.array(vel_err) ** 2
         )
         
         # 打印UKF的Rk和Qk值（用于调试和验证）
@@ -600,7 +600,7 @@ def run_single_experiment(
             print(f"    矩阵大小: {ukf_Rk.shape}")
             # 显示输入参数信息
             print(
-                f"    来源: pos_err = {pos_err} (通过poserrset设置rk，kfinit自动设置Rk = diag(rk)^2)"
+                f"    来源: vel_err = {vel_err} (速度观测，直接设置rk = vel_err，kfinit自动设置Rk = diag(rk)^2)"
             )
         else:
             print(f"  Rk矩阵: 未获取到")
@@ -635,7 +635,7 @@ def run_single_experiment(
             matlab.double(phi_err),
             matlab.double(dvn_err),
             matlab.double(dpos_err),
-            matlab.double(pos_err),
+            matlab.double(vel_err),
             nargout=2,
         )
         print("  零动力学模型UKF滤波器初始化完成\n")
@@ -648,7 +648,7 @@ def run_single_experiment(
             matlab.double(phi_err),
             matlab.double(dvn_err),
             matlab.double(dpos_err),
-            matlab.double(pos_err),
+            matlab.double(vel_err),
             nargout=2,
         )
         print("  线性阻力模型UKF滤波器初始化完成\n")
@@ -661,7 +661,7 @@ def run_single_experiment(
             matlab.double(phi_err),
             matlab.double(dvn_err),
             matlab.double(dpos_err),
-            matlab.double(pos_err),
+            matlab.double(vel_err),
             nargout=2,
         )
         print("  线性拟合模型UKF滤波器初始化完成\n")
@@ -1042,13 +1042,13 @@ def run_single_experiment(
             
             # UKF更新
             imu_index = loop_index - first_index
-            dynamic_pos_list = dynamic_pos.tolist()
-            matlab_dynamic_pos = matlab.double(dynamic_pos_list)
+            dynamic_vel_list = dynamic_vel.tolist()
+            matlab_dynamic_vel = matlab.double(dynamic_vel_list)
             matlab_imu_i = matlab.double(imu[imu_index, :].tolist())
 
             matlab_avp, matlab_ins, matlab_kf, matlab_ins_pred_pos_llh = (
                 eng_intelligent.test_SINS_dynamic_UKF_153_forpython(
-                    matlab_dynamic_pos, matlab_imu_i, matlab_kf, matlab_ins, nargout=4
+                    matlab_dynamic_vel, matlab_imu_i, matlab_kf, matlab_ins, nargout=4
                 )
             )
             
@@ -1206,8 +1206,8 @@ def run_single_experiment(
                 baseline_fa_collection.append(baseline_fa_xyz)
 
                 # 零动力学模型UKF更新
-                baseline_pos_list = baseline_pos_xyz.tolist()
-                matlab_baseline_pos = matlab.double(baseline_pos_list)
+                baseline_vel_list = baseline_vel_xyz.tolist()
+                matlab_baseline_vel = matlab.double(baseline_vel_list)
 
                 # 关键：使用独立的MATLAB引擎实例，确保两个模型完全隔离
                 # ========== 设置调试标志 ==========
@@ -1227,7 +1227,7 @@ def run_single_experiment(
                     matlab_kf_baseline,
                     matlab_ins_pred_pos_llh_baseline,
                 ) = eng_baseline.test_SINS_dynamic_UKF_153_forpython(
-                    matlab_baseline_pos,
+                    matlab_baseline_vel,
                     matlab_imu_i,
                     matlab_kf_baseline,
                     matlab_ins_baseline,
@@ -1340,8 +1340,8 @@ def run_single_experiment(
                 linear_drag_fa_collection.append(linear_drag_fa_xyz)
 
                 # 线性阻力模型UKF更新
-                linear_drag_pos_list = linear_drag_pos_xyz.tolist()
-                matlab_linear_drag_pos = matlab.double(linear_drag_pos_list)
+                linear_drag_vel_list = linear_drag_vel_xyz.tolist()
+                matlab_linear_drag_vel = matlab.double(linear_drag_vel_list)
 
                 (
                     matlab_avp_linear_drag,
@@ -1349,7 +1349,7 @@ def run_single_experiment(
                     matlab_kf_linear_drag,
                     matlab_ins_pred_pos_llh_linear_drag,
                 ) = eng_linear_drag.test_SINS_dynamic_UKF_153_forpython(
-                    matlab_linear_drag_pos,
+                    matlab_linear_drag_vel,
                     matlab_imu_i,
                     matlab_kf_linear_drag,
                     matlab_ins_linear_drag,
@@ -1475,8 +1475,8 @@ def run_single_experiment(
                 fit_fa_collection.append(fit_fa_xyz)
 
                 # 线性拟合模型UKF更新
-                fit_pos_list = fit_pos_xyz.tolist()
-                matlab_fit_pos = matlab.double(fit_pos_list)
+                fit_vel_list = fit_vel_xyz.tolist()
+                matlab_fit_vel = matlab.double(fit_vel_list)
 
                 (
                     matlab_avp_fit,
@@ -1484,7 +1484,7 @@ def run_single_experiment(
                     matlab_kf_fit,
                     matlab_ins_pred_pos_llh_fit,
                 ) = eng_fit.test_SINS_dynamic_UKF_153_forpython(
-                    matlab_fit_pos,
+                    matlab_fit_vel,
                     matlab_imu_i,
                     matlab_kf_fit,
                     matlab_ins_fit,
@@ -2083,13 +2083,13 @@ def run_single_experiment(
         # 这样在可视化平台上可以更方便地比较参数
         ukf_params = {}
         
-        # 记录位置误差参数（用于设置Rk矩阵）
-        # pos_err格式：[rx, ry, rz]，单位：米
-        # 参考：rk = poserrset([1;1;3])，kfinit会自动设置 kf.Rk = diag(rk)^2
-        ukf_params["pos_err_rx"] = float(pos_err[0]) if len(pos_err) > 0 else 0.0
-        ukf_params["pos_err_ry"] = float(pos_err[1]) if len(pos_err) > 1 else 0.0
-        ukf_params["pos_err_rz"] = float(pos_err[2]) if len(pos_err) > 2 else 0.0
-        ukf_params["pos_err"] = str(pos_err)  # 完整列表，便于查看
+        # 记录速度误差参数（用于设置Rk矩阵）
+        # vel_err格式：[vx, vy, vz]，单位：m/s
+        # 速度观测时，直接设置 rk = vel_err，kfinit会自动设置 kf.Rk = diag(rk)^2
+        ukf_params["vel_err_vx"] = float(vel_err[0]) if len(vel_err) > 0 else 0.0
+        ukf_params["vel_err_vy"] = float(vel_err[1]) if len(vel_err) > 1 else 0.0
+        ukf_params["vel_err_vz"] = float(vel_err[2]) if len(vel_err) > 2 else 0.0
+        ukf_params["vel_err"] = str(vel_err)  # 完整列表，便于查看
         
         # 记录IMU误差参数（用于设置Qk矩阵）
         # imu_err_params格式：[eb, db, web, wdb]

@@ -67,7 +67,7 @@ single_param_scan:
   # - "particle_filter.q0": 粒子滤波过程噪声标准差
   # - "kalman_filter.Q": 卡尔曼滤波过程噪声协方差
   # - "kalman_filter.R": 卡尔曼滤波观测噪声协方差
-  # - "matlab_ukf.pos_err": MATLAB UKF位置误差（用于设置Rk矩阵，格式：[rx, ry, rz] 单位：米）
+  # - "matlab_ukf.vel_err": MATLAB UKF速度误差（用于设置Rk矩阵，格式：[vx, vy, vz] 单位：m/s）
   # - "matlab_ukf.web": MATLAB UKF角随机游走
   # - "matlab_ukf.wdb": MATLAB UKF速度随机游走
   # - "matlab_ukf.phi": MATLAB UKF平台失准角
@@ -75,31 +75,20 @@ single_param_scan:
   # - "matlab_ukf.dpos": MATLAB UKF位置误差
   # param_name: "numPar"  # 要扫描的参数：粒子滤波的粒子数量
   # param_name: "lambda1" 
-  param_name: "matlab_ukf.pos_err"  # 要扫描的参数：MATLAB UKF位置误差（用于设置Rk矩阵）
+  param_name: "matlab_ukf.vel_err"  # 要扫描的参数：MATLAB UKF速度误差（用于设置Rk矩阵）
   
   # 参数值列表
-  # 测试不同的pos_err值（位置误差，单位：米）
-  # 格式：每个值是一个包含3个元素的列表 [rx, ry, rz]
-  # 总共：5个参数组合，每个组合运行5个文件 = 25个任务
+  # 测试不同的vel_err值（速度误差，单位：m/s）
+  # 格式：每个值是一个包含3个元素的列表 [vx, vy, vz]
+  # 总共：7个参数组合，每个组合运行5个文件 = 35个任务
   param_values:
-  #   - [0.000001, 0.000001, 0.000001]
-  #   - [0.000005, 0.000005, 0.000005]
-  #   - [0.00001, 0.00001, 0.00001]
-  #   - [0.00002, 0.00002, 0.00002]
-  #   - [0.00005, 0.00005, 0.00005]
-    # - [0.000001, 0.000001, 0.000001]
-    - [0.0001, 0.0001, 0.0001]
-    - [0.0002, 0.0002, 0.0002]
-    - [0.0005, 0.0005, 0.0005]
-    - [0.001, 0.001, 0.001]
-  #   - [0.002, 0.002, 0.002]
-    - [0.005, 0.005, 0.005]
-  #   - [0.01, 0.01, 0.01]
-  #   - [0.02, 0.02, 0.02]
-  #   - [0.05, 0.05, 0.05]
-    - [0.1, 0.1, 0.1]
-  #   - [0.2, 0.2, 0.2]
-    - [0.5, 0.5, 0.5]
+    - [0.01, 0.01, 0.01]   # 0.01 m/s
+    - [0.05, 0.05, 0.05]   # 0.05 m/s
+    - [0.1, 0.1, 0.1]      # 0.1 m/s
+    - [0.2, 0.2, 0.2]      # 0.2 m/s
+    - [0.5, 0.5, 0.5]      # 0.5 m/s
+    - [1.0, 1.0, 1.0]      # 1.0 m/s
+    - [2.0, 2.0, 2.0]      # 2.0 m/s
   # param_values: [50,100,300,500,800]
   # param_values: [0, 0.1, 0.3, 0.6, 0.9,1.2]
 
@@ -123,15 +112,15 @@ kalman_filter_scan:
 
 # MATLAB UKF参数扫描
 matlab_ukf_scan:
-  # pos_err值列表（位置误差，用于设置Rk矩阵）
-  # 格式：[rx, ry, rz] 单位：米
-  # 通过poserrset设置rk，然后kfinit自动设置 kf.Rk = diag(rk)^2
-  pos_err_values:
-    - [0.1, 0.1, 0.1]
-    - [1, 1, 1]
-    - [0.01, 0.01, 0.01]
-    - [0.001, 0.001, 0.001]
-    - [0.0001, 0.0001, 0.0001]
+  # vel_err值列表（速度误差，用于设置Rk矩阵）
+  # 格式：[vx, vy, vz] 单位：m/s
+  # 速度观测时，直接设置 rk = vel_err，然后kfinit自动设置 kf.Rk = diag(rk)^2
+  vel_err_values:
+    - [0.01, 0.01, 0.01]   # 0.01 m/s
+    - [0.05, 0.05, 0.05]   # 0.05 m/s
+    - [0.1, 0.1, 0.1]      # 0.1 m/s
+    - [0.2, 0.2, 0.2]      # 0.2 m/s
+    - [0.5, 0.5, 0.5]      # 0.5 m/s
   
   # web值列表（角随机游走，用于Q矩阵）- 使用默认值，不扫描
   web_values: [0.0001]
@@ -152,59 +141,59 @@ matlab_ukf_scan:
 
 # 列表模式：直接指定要测试的参数组合（当scan_mode="list"时使用）
 # 如果使用列表模式，将忽略上面的网格搜索配置
-# 6组参数组合：matlab_ukf.pos_err 和 filter.lambda1 一一对应
+# 6组参数组合：matlab_ukf.vel_err 和 filter.lambda1 一一对应
 param_combinations:
-  # 组合1: pos_err=[1,1,1], lambda1=0.9
+  # 组合1: vel_err=[1.0,1.0,1.0], lambda1=0.9
   - filter:
       lambda1: 0.9
     matlab_ukf:
-      pos_err: [1, 1, 1]  # 位置误差，用于设置Rk矩阵
+      vel_err: [1.0, 1.0, 1.0]  # 速度误差 (m/s)，用于设置Rk矩阵
   
-  # 组合2: pos_err=[0.1,0.1,0.1], lambda1=0.7
+  # 组合2: vel_err=[0.5,0.5,0.5], lambda1=0.7
   - filter:
       lambda1: 0.7
     matlab_ukf:
-      pos_err: [0.1, 0.1, 0.1]
+      vel_err: [0.5, 0.5, 0.5]
   
-  # 组合3: pos_err=[0.01,0.01,0.01], lambda1=0.5
+  # 组合3: vel_err=[0.2,0.2,0.2], lambda1=0.5
   - filter:
       lambda1: 0.5
     matlab_ukf:
-      pos_err: [0.01, 0.01, 0.01]
+      vel_err: [0.2, 0.2, 0.2]
   
-  # 组合4: pos_err=[0.001,0.001,0.001], lambda1=0.3
+  # 组合4: vel_err=[0.1,0.1,0.1], lambda1=0.3
   - filter:
       lambda1: 0.3
     matlab_ukf:
-      pos_err: [0.001, 0.001, 0.001]
+      vel_err: [0.1, 0.1, 0.1]
   
-  # 组合5: pos_err=[0.0001,0.0001,0.0001], lambda1=0.1
+  # 组合5: vel_err=[0.05,0.05,0.05], lambda1=0.1
   - filter:
       lambda1: 0.1
     matlab_ukf:
-      pos_err: [0.0001, 0.0001, 0.0001]
+      vel_err: [0.05, 0.05, 0.05]
   
-  # 组合6: pos_err=[0.00001,0.00001,0.00001], lambda1=0
+  # 组合6: vel_err=[0.01,0.01,0.01], lambda1=0
   - filter:
       lambda1: 0
     matlab_ukf:
-      pos_err: [0.00001, 0.00001, 0.00001]
+      vel_err: [0.01, 0.01, 0.01]
   
-  # 组合7: pos_err=[0.1,0.1,0.1], lambda1=0
+  # 组合7: vel_err=[0.1,0.1,0.1], lambda1=0
   - filter:
       lambda1: 0
     matlab_ukf:
-      pos_err: [0.1, 0.1, 0.1]
+      vel_err: [0.1, 0.1, 0.1]
 
-  # 组合8: pos_err=[0.01,0.01,0.01], lambda1=0
+  # 组合8: vel_err=[0.05,0.05,0.05], lambda1=0
   - filter:
       lambda1: 0
     matlab_ukf:
-      pos_err: [0.01, 0.01, 0.01]
+      vel_err: [0.05, 0.05, 0.05]
 
-  # 组合9: pos_err=[0.001,0.001,0.001], lambda1=0
+  # 组合9: vel_err=[0.2,0.2,0.2], lambda1=0
   - filter:
       lambda1: 0
     matlab_ukf:
-      pos_err: [0.001, 0.001, 0.001]
+      vel_err: [0.2, 0.2, 0.2]
 

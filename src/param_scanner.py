@@ -136,19 +136,19 @@ def generate_param_combinations(
                 new_config["kalman_filter"]["Q"] = param_value
             elif param_name == "kalman_filter.R":
                 new_config["kalman_filter"]["R"] = param_value
-            elif param_name == "matlab_ukf.pos_err":
-                # pos_err用于设置Rk矩阵：rk = poserrset(pos_err)，然后kfinit自动设置 kf.Rk = diag(rk)^2
+            elif param_name == "matlab_ukf.vel_err":
+                # vel_err用于设置Rk矩阵（速度观测）：rk = vel_err，然后kfinit自动设置 kf.Rk = diag(rk)^2
                 if isinstance(param_value, (int, float)):
-                    new_config["matlab_ukf"]["pos_err"] = [
+                    new_config["matlab_ukf"]["vel_err"] = [
                         param_value,
                         param_value,
                         param_value,
                     ]
                 elif isinstance(param_value, list) and len(param_value) == 3:
-                    new_config["matlab_ukf"]["pos_err"] = param_value
+                    new_config["matlab_ukf"]["vel_err"] = param_value
                 else:
                     raise ValueError(
-                        f"matlab_ukf.pos_err 参数值必须是标量或长度为3的列表，当前值: {param_value}"
+                        f"matlab_ukf.vel_err 参数值必须是标量或长度为3的列表，当前值: {param_value}"
                     )
             elif param_name == "matlab_ukf.web":
                 new_config["matlab_ukf"]["imu_err"]["web"] = param_value
@@ -202,7 +202,7 @@ def generate_param_combinations(
             # 更新MATLAB UKF参数
             if "matlab_ukf" in param_combo and param_combo["matlab_ukf"] is not None:
                 for key, value in param_combo["matlab_ukf"].items():
-                    if key in ["pos_err", "phi", "dpos"]:
+                    if key in ["vel_err", "phi", "dpos"]:
                         new_config["matlab_ukf"][key] = value
                     elif key in ["web", "wdb", "dvn"]:
                         if key == "web":
@@ -282,7 +282,7 @@ def _generate_ukf_combinations(
     ukf_scan = scan_config.get("matlab_ukf_scan", {})
 
     # 获取参数列表
-    pos_err_values = ukf_scan.get("pos_err_values", [[0.001, 0.001, 0.001]])
+    vel_err_values = ukf_scan.get("vel_err_values", [[0.1, 0.1, 0.1]])
     web_values = ukf_scan.get("web_values", [0.0001])
     wdb_values = ukf_scan.get("wdb_values", [0.0001])
     phi_values = ukf_scan.get("phi_values", [[0.1, 0.1, 0.1]])
@@ -290,11 +290,11 @@ def _generate_ukf_combinations(
     dpos_values = ukf_scan.get("dpos_values", [[1, 1, 3]])
 
     # 生成所有组合
-    for pos_err, web, wdb, phi, dvn, dpos in itertools.product(
-        pos_err_values, web_values, wdb_values, phi_values, dvn_values, dpos_values
+    for vel_err, web, wdb, phi, dvn, dpos in itertools.product(
+        vel_err_values, web_values, wdb_values, phi_values, dvn_values, dpos_values
     ):
         new_config = copy.deepcopy(base_config)
-        new_config["matlab_ukf"]["pos_err"] = pos_err
+        new_config["matlab_ukf"]["vel_err"] = vel_err
         new_config["matlab_ukf"]["imu_err"]["web"] = web
         new_config["matlab_ukf"]["imu_err"]["wdb"] = wdb
         new_config["matlab_ukf"]["avp_err"]["phi"] = phi
@@ -341,7 +341,7 @@ def get_param_string(config: Dict[str, Any]) -> str:
     imu_err = ukf.get("imu_err", {})
     avp_err = ukf.get("avp_err", {})
 
-    # 检查是否配置了 Rk，如果未配置则使用 pos_err 来生成名称
+    # 检查是否配置了 Rk，如果未配置则使用 vel_err 来生成名称
     Rk = ukf.get("Rk", None)
     if Rk is not None:
         # 如果配置了 Rk，使用 Rk 值
@@ -367,15 +367,15 @@ def get_param_string(config: Dict[str, Any]) -> str:
             f"UKF_{Rk_str}_web{imu_err.get('web', 0.0001)}_wdb{imu_err.get('wdb', 0.0001)}"
         )
     else:
-        # 如果未配置 Rk，使用 pos_err 来生成名称（pos_err 会通过 poserrset 设置 rk）
-        pos_err = ukf.get("pos_err", [0.001, 0.001, 0.001])
-        if isinstance(pos_err, (list, tuple)) and len(pos_err) >= 3:
-            # 使用 pos_err 的值来生成名称
-            pos_err_str = f"pos[{pos_err[0]},{pos_err[1]},{pos_err[2]}]"
+        # 如果未配置 Rk，使用 vel_err 来生成名称（速度观测，直接设置 rk = vel_err）
+        vel_err = ukf.get("vel_err", [0.1, 0.1, 0.1])
+        if isinstance(vel_err, (list, tuple)) and len(vel_err) >= 3:
+            # 使用 vel_err 的值来生成名称
+            vel_err_str = f"vel[{vel_err[0]},{vel_err[1]},{vel_err[2]}]"
         else:
-            pos_err_str = f"pos{pos_err}"
+            vel_err_str = f"vel{vel_err}"
         parts.append(
-            f"UKF_{pos_err_str}_web{imu_err.get('web', 0.0001)}_wdb{imu_err.get('wdb', 0.0001)}"
+            f"UKF_{vel_err_str}_web{imu_err.get('web', 0.0001)}_wdb{imu_err.get('wdb', 0.0001)}"
         )
     parts.append(
         f"phi{avp_err.get('phi', [0.1, 0.1, 0.1])[0]}_dvn{avp_err.get('dvn', 0.1)}"

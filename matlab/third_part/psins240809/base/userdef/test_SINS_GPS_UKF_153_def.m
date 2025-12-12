@@ -8,7 +8,7 @@ switch tag
         kf.Rk = diag(rk)^2;
         kf.Pxk = diag([davp; imuerr.eb; imuerr.db]*1.0)^2;
         kf.fx = @largephiu15ukf;
-        kf.Hk = [zeros(3,6), eye(3), zeros(3,6)];
+        kf.Hk = [zeros(3,3), eye(3), zeros(3,9)];
         out = kf;
     case psinsdef.kffktag,
     case psinsdef.kfhktag,
