@@ -156,7 +156,7 @@ def adaptive_r_update_zheng_raukf(
 
         # 限制R_adaptive_diag的范围
         R_adaptive_diag = np.clip(
-            R_adaptive_diag, initial_R_diag * 0.001, initial_R_diag * 1000.0
+            R_adaptive_diag, initial_R_diag * 0.1, initial_R_diag * 10.0
         )
 
         # 14. 加权融合：R_new = (1-lambda) * R_old + lambda * R_adaptive
@@ -720,6 +720,9 @@ def run_single_experiment(
         fa_time_collection = []
         neural_f_total_collection = []
         real_fa_total_collection = []
+        baseline_f_total_collection = []  # 零气动力模型总力收集
+        linear_drag_f_total_collection = []  # 线性阻力模型总力收集
+        fit_f_total_collection = []  # 线性拟合模型总力收集
         
         # 从适应阶段数据估计线性阻力系数和拟合权重
         drag_coefficients = estimate_drag_coefficients_from_adaptation(adaptinput, adaptlabel)
@@ -780,6 +783,15 @@ def run_single_experiment(
             "real_fa_total_x",
             "real_fa_total_y",
             "real_fa_total_z",
+            "baseline_f_total_x",
+            "baseline_f_total_y",
+            "baseline_f_total_z",
+            "linear_drag_f_total_x",
+            "linear_drag_f_total_y",
+            "linear_drag_f_total_z",
+            "fit_f_total_x",
+            "fit_f_total_y",
+            "fit_f_total_z",
             "dynamic_a_0",
             "dynamic_a_1",
             "dynamic_a_2",
@@ -1018,12 +1030,26 @@ def run_single_experiment(
             m0 = 2.6
             g_ = 9.8
             m_g = np.array([0, 0, -m0 * g_])  # 重力（惯性坐标系）
-            R_fT = (Ri @ fT).flatten()  # 推力转换到惯性坐标系
+            R_fT = (Ri @ fT).flatten()  # 推力转换到惯性坐标系（使用元学习模型的旋转矩阵）
             neural_f_total_xyz = neural_fa_xyz + R_fT + m_g
             
             if loop_index - 1 < len(real_fas):
                 real_fa_xyz = real_fas[loop_index - 1, :]
-                real_fa_total_xyz = real_fa_xyz + R_fT + m_g
+                # 计算真实旋转矩阵（用于真实总力计算）
+                if loop_index - 1 < len(real_q):
+                    real_q_current = real_q[loop_index - 1, :]  # 获取当前时刻的真实四元数
+                    matlab_real_q = matlab.double(real_q_current.tolist())
+                    real_att_rad = np.array(
+                        eng_intelligent.q2att(matlab_real_q)
+                    ).flatten()  # 转换为欧拉角（弧度）
+                    matlab_Ri_real = eng_intelligent.a2mat_subfun(
+                        matlab.double(real_att_rad.tolist()), nargout=1
+                    )
+                    Ri_real = np.array(matlab_Ri_real)
+                    R_fT_real = (Ri_real @ fT).flatten()  # 使用真实旋转矩阵计算推力转换
+                else:
+                    R_fT_real = R_fT  # 如果没有真实姿态，使用元学习模型的旋转矩阵
+                real_fa_total_xyz = real_fa_xyz + R_fT_real + m_g
                 
                 neural_fa_collection.append(neural_fa_xyz)
                 real_fa_collection.append(real_fa_xyz)
@@ -1142,6 +1168,7 @@ def run_single_experiment(
             baseline_pos_xyz = np.array([np.nan, np.nan, np.nan])
             baseline_vel_xyz = np.array([np.nan, np.nan, np.nan])
             baseline_fa_xyz = np.array([np.nan, np.nan, np.nan])
+            baseline_f_total_xyz = np.array([np.nan, np.nan, np.nan])
             baseline_ukf_fused_att_xyz = np.array([np.nan, np.nan, np.nan])
             baseline_ukf_fused_vel_xyz = np.array([np.nan, np.nan, np.nan])
             baseline_ukf_fused_pos_xyz = np.array([np.nan, np.nan, np.nan])
@@ -1204,6 +1231,11 @@ def run_single_experiment(
                 
                 # 收集baseline气动力数据（用于RMSE计算）
                 baseline_fa_collection.append(baseline_fa_xyz)
+                
+                # 计算零气动力模型总力：baseline_fa + R_baseline@fT + m*g
+                R_fT_baseline = (Ri_baseline @ fT).flatten()
+                baseline_f_total_xyz = baseline_fa_xyz + R_fT_baseline + m_g
+                baseline_f_total_collection.append(baseline_f_total_xyz)
 
                 # 零动力学模型UKF更新
                 baseline_vel_list = baseline_vel_xyz.tolist()
@@ -1275,6 +1307,7 @@ def run_single_experiment(
             linear_drag_pos_xyz = np.array([np.nan, np.nan, np.nan])
             linear_drag_vel_xyz = np.array([np.nan, np.nan, np.nan])
             linear_drag_fa_xyz = np.array([np.nan, np.nan, np.nan])
+            linear_drag_f_total_xyz = np.array([np.nan, np.nan, np.nan])
             linear_drag_ukf_fused_att_xyz = np.array([np.nan, np.nan, np.nan])
             linear_drag_ukf_fused_vel_xyz = np.array([np.nan, np.nan, np.nan])
             linear_drag_ukf_fused_pos_xyz = np.array([np.nan, np.nan, np.nan])
@@ -1338,6 +1371,11 @@ def run_single_experiment(
                 
                 # 收集线性阻力模型气动力数据
                 linear_drag_fa_collection.append(linear_drag_fa_xyz)
+                
+                # 计算线性阻力模型总力：linear_drag_fa + R_linear_drag@fT + m*g
+                R_fT_linear_drag = (Ri_linear_drag @ fT).flatten()
+                linear_drag_f_total_xyz = linear_drag_fa_xyz + R_fT_linear_drag + m_g
+                linear_drag_f_total_collection.append(linear_drag_f_total_xyz)
 
                 # 线性阻力模型UKF更新
                 linear_drag_vel_list = linear_drag_vel_xyz.tolist()
@@ -1394,6 +1432,7 @@ def run_single_experiment(
             fit_pos_xyz = np.array([np.nan, np.nan, np.nan])
             fit_vel_xyz = np.array([np.nan, np.nan, np.nan])
             fit_fa_xyz = np.array([np.nan, np.nan, np.nan])
+            fit_f_total_xyz = np.array([np.nan, np.nan, np.nan])
             fit_ukf_fused_att_xyz = np.array([np.nan, np.nan, np.nan])
             fit_ukf_fused_vel_xyz = np.array([np.nan, np.nan, np.nan])
             fit_ukf_fused_pos_xyz = np.array([np.nan, np.nan, np.nan])
@@ -1473,6 +1512,11 @@ def run_single_experiment(
                 
                 # 收集线性拟合模型气动力数据
                 fit_fa_collection.append(fit_fa_xyz)
+                
+                # 计算线性拟合模型总力：fit_fa + R_fit@fT + m*g
+                R_fT_fit = (Ri_fit @ fT).flatten()
+                fit_f_total_xyz = fit_fa_xyz + R_fT_fit + m_g
+                fit_f_total_collection.append(fit_f_total_xyz)
 
                 # 线性拟合模型UKF更新
                 fit_vel_list = fit_vel_xyz.tolist()
@@ -1640,6 +1684,15 @@ def run_single_experiment(
                 real_fa_total_xyz[0],
                 real_fa_total_xyz[1],
                 real_fa_total_xyz[2],
+                baseline_f_total_xyz[0],
+                baseline_f_total_xyz[1],
+                baseline_f_total_xyz[2],
+                linear_drag_f_total_xyz[0],
+                linear_drag_f_total_xyz[1],
+                linear_drag_f_total_xyz[2],
+                fit_f_total_xyz[0],
+                fit_f_total_xyz[1],
+                fit_f_total_xyz[2],
                 dynamic_a[0, 0],
                 dynamic_a[1, 0],
                 dynamic_a[2, 0],

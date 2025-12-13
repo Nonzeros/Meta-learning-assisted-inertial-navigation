@@ -8,7 +8,7 @@ csv_files_config:
   # 是否执行全部CSV文件
   # true: 执行所有CSV文件（默认行为，适合完整测试）
   # false: 只执行指定的一个CSV文件（适合快速验证单个参数）
-  run_all_csv_files: true
+  run_all_csv_files: false
   
   # 当run_all_csv_files为false时，指定要执行的CSV文件
   # 可以是：
@@ -82,7 +82,7 @@ single_param_scan:
   # 格式：每个值是一个包含3个元素的列表 [vx, vy, vz]
   # 总共：7个参数组合，每个组合运行5个文件 = 35个任务
   param_values:
-    - [0.01, 0.01, 0.01]   # 0.01 m/s
+    # - [0.01, 0.01, 0.01]   # 0.01 m/s
     - [0.05, 0.05, 0.05]   # 0.05 m/s
     - [0.1, 0.1, 0.1]      # 0.1 m/s
     - [0.2, 0.2, 0.2]      # 0.2 m/s
