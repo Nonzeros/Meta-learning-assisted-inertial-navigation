@@ -1160,6 +1160,66 @@ def plot_time_series(log_df, run_name: str):
                     )
                 )
         
+        # 开环结果（元学习模型）- 使用日志文件中的open_loop_intelligent_px/py/pz
+        open_loop_intelligent_col = f"open_loop_intelligent_p{dir}"
+        if open_loop_intelligent_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[open_loop_intelligent_col])
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, open_loop_intelligent_col],
+                        name="元学习模型开环",
+                        mode="lines",
+                        line=dict(color="#2E86AB", width=2, dash="dot"),
+                    )
+                )
+        
+        # 开环结果（零气动力模型）- 使用日志文件中的open_loop_baseline_px/py/pz
+        open_loop_baseline_col = f"open_loop_baseline_p{dir}"
+        if open_loop_baseline_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[open_loop_baseline_col])
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, open_loop_baseline_col],
+                        name="零气动力模型开环",
+                        mode="lines",
+                        line=dict(color="#FF6B35", width=2, dash="dot"),
+                    )
+                )
+        
+        # 开环结果（线性阻力模型）- 使用日志文件中的open_loop_linear_drag_px/py/pz
+        open_loop_linear_drag_col = f"open_loop_linear_drag_p{dir}"
+        if open_loop_linear_drag_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[open_loop_linear_drag_col])
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, open_loop_linear_drag_col],
+                        name="线性阻力模型开环",
+                        mode="lines",
+                        line=dict(color="#8B00FF", width=2, dash="dot"),
+                    )
+                )
+        
+        # 开环结果（线性拟合模型）- 使用日志文件中的open_loop_fit_px/py/pz
+        open_loop_fit_col = f"open_loop_fit_p{dir}"
+        if open_loop_fit_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[open_loop_fit_col])
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, open_loop_fit_col],
+                        name="线性拟合模型开环",
+                        mode="lines",
+                        line=dict(color="#00CED1", width=2, dash="dot"),
+                    )
+                )
+        
         fig.update_layout(
             title=f"{label}位置对比",
             xaxis_title="时间 (s)",
@@ -1268,6 +1328,66 @@ def plot_time_series(log_df, run_name: str):
                         name="纯惯导",
                         mode="lines",
                         line=dict(color="#F24236", width=2, dash="dash"),
+                    )
+                )
+        
+        # 开环结果（元学习模型）- 使用日志文件中的open_loop_intelligent_vx/vy/vz
+        open_loop_intelligent_col = f"open_loop_intelligent_v{dir}"
+        if open_loop_intelligent_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[open_loop_intelligent_col])
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, open_loop_intelligent_col],
+                        name="元学习模型开环",
+                        mode="lines",
+                        line=dict(color="#2E86AB", width=2, dash="dot"),
+                    )
+                )
+        
+        # 开环结果（零气动力模型）- 使用日志文件中的open_loop_baseline_vx/vy/vz
+        open_loop_baseline_col = f"open_loop_baseline_v{dir}"
+        if open_loop_baseline_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[open_loop_baseline_col])
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, open_loop_baseline_col],
+                        name="零气动力模型开环",
+                        mode="lines",
+                        line=dict(color="#FF6B35", width=2, dash="dot"),
+                    )
+                )
+        
+        # 开环结果（线性阻力模型）- 使用日志文件中的open_loop_linear_drag_vx/vy/vz
+        open_loop_linear_drag_col = f"open_loop_linear_drag_v{dir}"
+        if open_loop_linear_drag_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[open_loop_linear_drag_col])
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, open_loop_linear_drag_col],
+                        name="线性阻力模型开环",
+                        mode="lines",
+                        line=dict(color="#8B00FF", width=2, dash="dot"),
+                    )
+                )
+        
+        # 开环结果（线性拟合模型）- 使用日志文件中的open_loop_fit_vx/vy/vz
+        open_loop_fit_col = f"open_loop_fit_v{dir}"
+        if open_loop_fit_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[open_loop_fit_col])
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, open_loop_fit_col],
+                        name="线性拟合模型开环",
+                        mode="lines",
+                        line=dict(color="#00CED1", width=2, dash="dot"),
                     )
                 )
         
@@ -2583,6 +2703,392 @@ def plot_aerodynamic_force(log_df, run_name: str):
         fa_total_figs.append(fig)
     
     return fa_figs, fa_total_figs
+
+
+def plot_bias_estimation(log_df, run_name: str):
+    """
+    绘制UKF零偏估计时间序列对比图
+    包括陀螺零偏（eb）和加速度计零偏（db）的X、Y、Z三个方向
+    """
+    if log_df is None or log_df.empty:
+        return [], []
+    
+    time_col = "time"
+    if time_col not in log_df.columns:
+        st.warning("日志文件中没有找到时间列")
+        return [], []
+    
+    # 排除最后几个数据点
+    exclude_last = min(5, len(log_df) - 1)
+    if exclude_last > 0:
+        log_df_plot = log_df.iloc[:-exclude_last].copy()
+    else:
+        log_df_plot = log_df.copy()
+    
+    # 陀螺零偏（eb）对比图（X、Y、Z各一张）
+    eb_figs = []
+    eb_directions = ["x", "y", "z"]
+    eb_labels = ["X", "Y", "Z"]
+    
+    for dir, label in zip(eb_directions, eb_labels):
+        fig = go.Figure()
+        
+        # 元学习模型陀螺零偏 - ukf_eb_intelligent_x/y/z
+        eb_intelligent_col = f"ukf_eb_intelligent_{dir}"
+        if eb_intelligent_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[eb_intelligent_col])
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, eb_intelligent_col],
+                        name="元学习模型",
+                        mode="lines",
+                        line=dict(color="#2E86AB", width=2),
+                    )
+                )
+        
+        # 零气动力模型陀螺零偏 - ukf_eb_baseline_x/y/z
+        eb_baseline_col = f"ukf_eb_baseline_{dir}"
+        if eb_baseline_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[eb_baseline_col])
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, eb_baseline_col],
+                        name="零气动力模型",
+                        mode="lines",
+                        line=dict(color="#FF6B35", width=2, dash="dashdot"),
+                    )
+                )
+        
+        # 线性阻力模型陀螺零偏 - ukf_eb_linear_drag_x/y/z
+        eb_linear_drag_col = f"ukf_eb_linear_drag_{dir}"
+        if eb_linear_drag_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[eb_linear_drag_col])
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, eb_linear_drag_col],
+                        name="线性阻力模型",
+                        mode="lines",
+                        line=dict(color="#8B00FF", width=2, dash="dot"),
+                    )
+                )
+        
+        # 线性拟合模型陀螺零偏 - ukf_eb_fit_x/y/z
+        eb_fit_col = f"ukf_eb_fit_{dir}"
+        if eb_fit_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[eb_fit_col])
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, eb_fit_col],
+                        name="线性拟合模型",
+                        mode="lines",
+                        line=dict(color="#00CED1", width=2, dash="dash"),
+                    )
+                )
+        
+        fig.update_layout(
+            title=f"陀螺零偏{label}方向估计对比",
+            xaxis_title="时间 (s)",
+            yaxis_title=f"陀螺零偏{label} (deg/h)",
+            height=400,
+            legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+        )
+        fig = apply_scientific_style(
+            fig,
+            title=f"陀螺零偏{label}方向估计对比",
+            xlabel="时间 (s)",
+            ylabel=f"陀螺零偏{label} (deg/h)",
+        )
+        eb_figs.append(fig)
+    
+    # 加速度计零偏（db）对比图（X、Y、Z各一张）
+    db_figs = []
+    db_directions = ["x", "y", "z"]
+    db_labels = ["X", "Y", "Z"]
+    
+    for dir, label in zip(db_directions, db_labels):
+        fig = go.Figure()
+        
+        # 元学习模型加速度计零偏 - ukf_db_intelligent_x/y/z
+        db_intelligent_col = f"ukf_db_intelligent_{dir}"
+        if db_intelligent_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[db_intelligent_col])
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, db_intelligent_col],
+                        name="元学习模型",
+                        mode="lines",
+                        line=dict(color="#2E86AB", width=2),
+                    )
+                )
+        
+        # 零气动力模型加速度计零偏 - ukf_db_baseline_x/y/z
+        db_baseline_col = f"ukf_db_baseline_{dir}"
+        if db_baseline_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[db_baseline_col])
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, db_baseline_col],
+                        name="零气动力模型",
+                        mode="lines",
+                        line=dict(color="#FF6B35", width=2, dash="dashdot"),
+                    )
+                )
+        
+        # 线性阻力模型加速度计零偏 - ukf_db_linear_drag_x/y/z
+        db_linear_drag_col = f"ukf_db_linear_drag_{dir}"
+        if db_linear_drag_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[db_linear_drag_col])
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, db_linear_drag_col],
+                        name="线性阻力模型",
+                        mode="lines",
+                        line=dict(color="#8B00FF", width=2, dash="dot"),
+                    )
+                )
+        
+        # 线性拟合模型加速度计零偏 - ukf_db_fit_x/y/z
+        db_fit_col = f"ukf_db_fit_{dir}"
+        if db_fit_col in log_df_plot.columns:
+            valid_mask = pd.notna(log_df_plot[db_fit_col])
+            if valid_mask.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=log_df_plot.loc[valid_mask, time_col],
+                        y=log_df_plot.loc[valid_mask, db_fit_col],
+                        name="线性拟合模型",
+                        mode="lines",
+                        line=dict(color="#00CED1", width=2, dash="dash"),
+                    )
+                )
+        
+        fig.update_layout(
+            title=f"加速度计零偏{label}方向估计对比",
+            xaxis_title="时间 (s)",
+            yaxis_title=f"加速度计零偏{label} (ug)",
+            height=400,
+            legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+        )
+        fig = apply_scientific_style(
+            fig,
+            title=f"加速度计零偏{label}方向估计对比",
+            xlabel="时间 (s)",
+            ylabel=f"加速度计零偏{label} (ug)",
+        )
+        db_figs.append(fig)
+    
+    return eb_figs, db_figs
+
+
+def plot_along_track_aerodynamic_force(log_df, run_name: str):
+    """
+    绘制沿航迹方向的气动力对比图
+    计算 F_parallel = F_aero · v_unit，其中 v_unit = v / ||v||
+    用于验证"速度准确但气动力分量不准确"的假设
+    """
+    if log_df is None or log_df.empty:
+        return [], {}
+    
+    time_col = "time"
+    if time_col not in log_df.columns:
+        st.warning("日志文件中没有找到时间列")
+        return [], {}
+    
+    # 排除最后几个数据点
+    exclude_last = min(5, len(log_df) - 1)
+    if exclude_last > 0:
+        log_df_plot = log_df.iloc[:-exclude_last].copy()
+    else:
+        log_df_plot = log_df.copy()
+    
+    # 计算沿航迹方向的气动力分量
+    models_config = [
+        {
+            "name": "元学习模型",
+            "fa_prefix": "neural_fa",
+            "vel_prefix": "ukf_fused_v",
+            "color": "#2E86AB",
+            "line_style": None,
+        },
+        {
+            "name": "零气动力模型",
+            "fa_prefix": "baseline_fa",
+            "vel_prefix": "baseline_ukf_fused_v",
+            "color": "#FF6B35",
+            "line_style": "dashdot",
+        },
+        {
+            "name": "线性阻力模型",
+            "fa_prefix": "linear_drag_fa",
+            "vel_prefix": "linear_drag_ukf_fused_v",
+            "color": "#8B00FF",
+            "line_style": "dot",
+        },
+        {
+            "name": "线性拟合模型",
+            "fa_prefix": "fit_fa",
+            "vel_prefix": "fit_ukf_fused_v",
+            "color": "#00CED1",
+            "line_style": "dash",
+        },
+    ]
+    
+    # 创建时间序列图
+    fig = go.Figure()
+    
+    # 计算真实值的沿航迹方向气动力
+    real_fa_parallel = []
+    if ("real_fa_x" in log_df_plot.columns and "real_fa_y" in log_df_plot.columns and 
+        "real_fa_z" in log_df_plot.columns and "real_vx" in log_df_plot.columns and
+        "real_vy" in log_df_plot.columns and "real_vz" in log_df_plot.columns):
+        
+        valid_mask_real = (
+            pd.notna(log_df_plot["real_fa_x"]) & pd.notna(log_df_plot["real_fa_y"]) &
+            pd.notna(log_df_plot["real_fa_z"]) & pd.notna(log_df_plot["real_vx"]) &
+            pd.notna(log_df_plot["real_vy"]) & pd.notna(log_df_plot["real_vz"])
+        )
+        
+        if valid_mask_real.any():
+            for idx in log_df_plot.index[valid_mask_real]:
+                F_aero = np.array([
+                    log_df_plot.loc[idx, "real_fa_x"],
+                    log_df_plot.loc[idx, "real_fa_y"],
+                    log_df_plot.loc[idx, "real_fa_z"],
+                ])
+                v = np.array([
+                    log_df_plot.loc[idx, "real_vx"],
+                    log_df_plot.loc[idx, "real_vy"],
+                    log_df_plot.loc[idx, "real_vz"],
+                ])
+                
+                v_norm = np.linalg.norm(v)
+                if v_norm > 1e-6:
+                    v_unit = v / v_norm
+                    F_parallel = np.dot(F_aero, v_unit)
+                else:
+                    F_parallel = 0.0
+                
+                real_fa_parallel.append(F_parallel)
+            
+            # 绘制真实值
+            valid_indices = log_df_plot.index[valid_mask_real]
+            fig.add_trace(
+                go.Scatter(
+                    x=log_df_plot.loc[valid_indices, time_col],
+                    y=real_fa_parallel,
+                    name="真实值（沿航迹）",
+                    mode="lines",
+                    line=dict(color="#06A77D", width=2, dash="dot"),
+                )
+            )
+    
+    # 计算各模型的沿航迹方向气动力并绘制
+    rmse_dict = {}
+    
+    for model_config in models_config:
+        fa_prefix = model_config["fa_prefix"]
+        vel_prefix = model_config["vel_prefix"]
+        model_name = model_config["name"]
+        
+        fa_x_col = f"{fa_prefix}_x"
+        fa_y_col = f"{fa_prefix}_y"
+        fa_z_col = f"{fa_prefix}_z"
+        vel_x_col = f"{vel_prefix}x"
+        vel_y_col = f"{vel_prefix}y"
+        vel_z_col = f"{vel_prefix}z"
+        
+        if (fa_x_col in log_df_plot.columns and fa_y_col in log_df_plot.columns and
+            fa_z_col in log_df_plot.columns and vel_x_col in log_df_plot.columns and
+            vel_y_col in log_df_plot.columns and vel_z_col in log_df_plot.columns):
+            
+            valid_mask = (
+                pd.notna(log_df_plot[fa_x_col]) & pd.notna(log_df_plot[fa_y_col]) &
+                pd.notna(log_df_plot[fa_z_col]) & pd.notna(log_df_plot[vel_x_col]) &
+                pd.notna(log_df_plot[vel_y_col]) & pd.notna(log_df_plot[vel_z_col])
+            )
+            
+            if valid_mask.any():
+                model_fa_parallel = []
+                model_times = []
+                
+                for idx in log_df_plot.index[valid_mask]:
+                    F_aero = np.array([
+                        log_df_plot.loc[idx, fa_x_col],
+                        log_df_plot.loc[idx, fa_y_col],
+                        log_df_plot.loc[idx, fa_z_col],
+                    ])
+                    v = np.array([
+                        log_df_plot.loc[idx, vel_x_col],
+                        log_df_plot.loc[idx, vel_y_col],
+                        log_df_plot.loc[idx, vel_z_col],
+                    ])
+                    
+                    v_norm = np.linalg.norm(v)
+                    if v_norm > 1e-6:
+                        v_unit = v / v_norm
+                        F_parallel = np.dot(F_aero, v_unit)
+                    else:
+                        F_parallel = 0.0
+                    
+                    model_fa_parallel.append(F_parallel)
+                    model_times.append(log_df_plot.loc[idx, time_col])
+                
+                # 绘制模型结果
+                line_dict = {"color": model_config["color"], "width": 2}
+                if model_config["line_style"]:
+                    line_dict["dash"] = model_config["line_style"]
+                
+                fig.add_trace(
+                    go.Scatter(
+                        x=model_times,
+                        y=model_fa_parallel,
+                        name=f"{model_name}（沿航迹）",
+                        mode="lines",
+                        line=line_dict,
+                    )
+                )
+                
+                # 计算RMSE（与真实值对比）
+                if len(real_fa_parallel) > 0 and len(model_fa_parallel) > 0:
+                    # 对齐数据（使用时间匹配）
+                    min_len = min(len(real_fa_parallel), len(model_fa_parallel))
+                    if min_len > 0:
+                        real_fa_parallel_aligned = np.array(real_fa_parallel[:min_len])
+                        model_fa_parallel_aligned = np.array(model_fa_parallel[:min_len])
+                        error = model_fa_parallel_aligned - real_fa_parallel_aligned
+                        rmse = np.sqrt(np.mean(error**2))
+                        rmse_dict[model_name] = rmse
+    
+    # 设置图表布局
+    fig.update_layout(
+        title="沿航迹方向气动力对比（F_parallel = F_aero · v_unit）",
+        xaxis_title="时间 (s)",
+        yaxis_title="沿航迹方向气动力 (N)",
+        height=500,
+        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01),
+    )
+    fig = apply_scientific_style(
+        fig,
+        title="沿航迹方向气动力对比（F_parallel = F_aero · v_unit）",
+        xlabel="时间 (s)",
+        ylabel="沿航迹方向气动力 (N)",
+    )
+    
+    return [fig], rmse_dict
 
 
 def main():
@@ -4378,6 +4884,311 @@ def main():
             else:
                 st.info("总力RMSE数据不可用")
             
+            # 详细统计表格
+            st.markdown("---")
+            st.markdown("### 📊 详细统计表格")
+            
+            # 获取日志文件用于计算统计
+            log_file_name_stats = selected_row.get("log_file", None)
+            task_batch_folder_stats = selected_row.get("param_task_batch_folder", None)
+            
+            if log_file_name_stats is not None and pd.notna(log_file_name_stats):
+                log_file_name_stats = str(log_file_name_stats)
+            else:
+                log_file_name_stats = None
+            
+            if task_batch_folder_stats is not None and pd.notna(task_batch_folder_stats):
+                task_batch_folder_stats = str(task_batch_folder_stats)
+            else:
+                task_batch_folder_stats = None
+            
+            if log_file_name_stats:
+                log_df_stats = load_log_file(log_file_name_stats, project_root, task_batch_folder_stats)
+                
+                if log_df_stats is not None and not log_df_stats.empty:
+                    # 排除最后几个数据点
+                    exclude_last = min(5, len(log_df_stats) - 1)
+                    if exclude_last > 0:
+                        log_df_stats_plot = log_df_stats.iloc[:-exclude_last].copy()
+                    else:
+                        log_df_stats_plot = log_df_stats.copy()
+                    
+                    # 1. 速度误差统计表格
+                    st.markdown("#### 1. 速度误差统计")
+                    vel_error_stats = []
+                    models_vel = ["元学习模型", "零气动力模型", "线性阻力模型", "线性拟合模型"]
+                    
+                    for model in models_vel:
+                        # 确定列名前缀
+                        if model == "元学习模型":
+                            vel_prefix = "ukf_fused_v"
+                        elif model == "零气动力模型":
+                            vel_prefix = "baseline_ukf_fused_v"
+                        elif model == "线性阻力模型":
+                            vel_prefix = "linear_drag_ukf_fused_v"
+                        else:  # 线性拟合模型
+                            vel_prefix = "fit_ukf_fused_v"
+                        
+                        # 检查列是否存在
+                        if (f"{vel_prefix}x" in log_df_stats_plot.columns and 
+                            f"{vel_prefix}y" in log_df_stats_plot.columns and 
+                            f"{vel_prefix}z" in log_df_stats_plot.columns and
+                            "real_vx" in log_df_stats_plot.columns and
+                            "real_vy" in log_df_stats_plot.columns and
+                            "real_vz" in log_df_stats_plot.columns):
+                            
+                            # 计算误差
+                            valid_mask = (
+                                pd.notna(log_df_stats_plot[f"{vel_prefix}x"]) & pd.notna(log_df_stats_plot["real_vx"]) &
+                                pd.notna(log_df_stats_plot[f"{vel_prefix}y"]) & pd.notna(log_df_stats_plot["real_vy"]) &
+                                pd.notna(log_df_stats_plot[f"{vel_prefix}z"]) & pd.notna(log_df_stats_plot["real_vz"])
+                            )
+                            
+                            if valid_mask.sum() > 0:
+                                error_x = log_df_stats_plot.loc[valid_mask, f"{vel_prefix}x"] - log_df_stats_plot.loc[valid_mask, "real_vx"]
+                                error_y = log_df_stats_plot.loc[valid_mask, f"{vel_prefix}y"] - log_df_stats_plot.loc[valid_mask, "real_vy"]
+                                error_z = log_df_stats_plot.loc[valid_mask, f"{vel_prefix}z"] - log_df_stats_plot.loc[valid_mask, "real_vz"]
+                                
+                                # 计算总误差（3D欧氏距离）
+                                error_total = np.sqrt(error_x**2 + error_y**2 + error_z**2)
+                                
+                                # RMSE
+                                rmse = np.sqrt(np.mean(error_total**2))
+                                
+                                # MAE
+                                mae = np.mean(np.abs(error_total))
+                                
+                                # 最大误差
+                                max_error = np.max(error_total)
+                                
+                                vel_error_stats.append({
+                                    "模型": model,
+                                    "速度RMSE (m/s)": f"{rmse:.4f}",
+                                    "速度MAE (m/s)": f"{mae:.4f}",
+                                    "最大误差 (m/s)": f"{max_error:.4f}",
+                                })
+                    
+                    if vel_error_stats:
+                        vel_error_df = pd.DataFrame(vel_error_stats)
+                        st.dataframe(vel_error_df, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("速度误差统计数据不可用")
+                    
+                    # 2. 开环闭环对比表格
+                    st.markdown("---")
+                    st.markdown("#### 2. 开环闭环对比")
+                    open_closed_stats = []
+                    
+                    for model in models_vel:
+                        # 确定列名前缀
+                        if model == "元学习模型":
+                            closed_prefix = "ukf_fused_v"
+                            open_prefix = "open_loop_intelligent_v"
+                        elif model == "零气动力模型":
+                            closed_prefix = "baseline_ukf_fused_v"
+                            open_prefix = "open_loop_baseline_v"
+                        elif model == "线性阻力模型":
+                            closed_prefix = "linear_drag_ukf_fused_v"
+                            open_prefix = "open_loop_linear_drag_v"
+                        else:  # 线性拟合模型
+                            closed_prefix = "fit_ukf_fused_v"
+                            open_prefix = "open_loop_fit_v"
+                        
+                        # 计算闭环RMSE
+                        closed_rmse = None
+                        if (f"{closed_prefix}x" in log_df_stats_plot.columns and 
+                            f"{closed_prefix}y" in log_df_stats_plot.columns and 
+                            f"{closed_prefix}z" in log_df_stats_plot.columns and
+                            "real_vx" in log_df_stats_plot.columns and
+                            "real_vy" in log_df_stats_plot.columns and
+                            "real_vz" in log_df_stats_plot.columns):
+                            
+                            valid_mask_closed = (
+                                pd.notna(log_df_stats_plot[f"{closed_prefix}x"]) & pd.notna(log_df_stats_plot["real_vx"]) &
+                                pd.notna(log_df_stats_plot[f"{closed_prefix}y"]) & pd.notna(log_df_stats_plot["real_vy"]) &
+                                pd.notna(log_df_stats_plot[f"{closed_prefix}z"]) & pd.notna(log_df_stats_plot["real_vz"])
+                            )
+                            
+                            if valid_mask_closed.sum() > 0:
+                                error_x_closed = log_df_stats_plot.loc[valid_mask_closed, f"{closed_prefix}x"] - log_df_stats_plot.loc[valid_mask_closed, "real_vx"]
+                                error_y_closed = log_df_stats_plot.loc[valid_mask_closed, f"{closed_prefix}y"] - log_df_stats_plot.loc[valid_mask_closed, "real_vy"]
+                                error_z_closed = log_df_stats_plot.loc[valid_mask_closed, f"{closed_prefix}z"] - log_df_stats_plot.loc[valid_mask_closed, "real_vz"]
+                                error_total_closed = np.sqrt(error_x_closed**2 + error_y_closed**2 + error_z_closed**2)
+                                closed_rmse = np.sqrt(np.mean(error_total_closed**2))
+                        
+                        # 计算开环RMSE
+                        open_rmse = None
+                        if (f"{open_prefix}x" in log_df_stats_plot.columns and 
+                            f"{open_prefix}y" in log_df_stats_plot.columns and 
+                            f"{open_prefix}z" in log_df_stats_plot.columns and
+                            "real_vx" in log_df_stats_plot.columns and
+                            "real_vy" in log_df_stats_plot.columns and
+                            "real_vz" in log_df_stats_plot.columns):
+                            
+                            valid_mask_open = (
+                                pd.notna(log_df_stats_plot[f"{open_prefix}x"]) & pd.notna(log_df_stats_plot["real_vx"]) &
+                                pd.notna(log_df_stats_plot[f"{open_prefix}y"]) & pd.notna(log_df_stats_plot["real_vy"]) &
+                                pd.notna(log_df_stats_plot[f"{open_prefix}z"]) & pd.notna(log_df_stats_plot["real_vz"])
+                            )
+                            
+                            if valid_mask_open.sum() > 0:
+                                error_x_open = log_df_stats_plot.loc[valid_mask_open, f"{open_prefix}x"] - log_df_stats_plot.loc[valid_mask_open, "real_vx"]
+                                error_y_open = log_df_stats_plot.loc[valid_mask_open, f"{open_prefix}y"] - log_df_stats_plot.loc[valid_mask_open, "real_vy"]
+                                error_z_open = log_df_stats_plot.loc[valid_mask_open, f"{open_prefix}z"] - log_df_stats_plot.loc[valid_mask_open, "real_vz"]
+                                error_total_open = np.sqrt(error_x_open**2 + error_y_open**2 + error_z_open**2)
+                                open_rmse = np.sqrt(np.mean(error_total_open**2))
+                        
+                        if closed_rmse is not None or open_rmse is not None:
+                            open_closed_stats.append({
+                                "模型": model,
+                                "开环RMSE (m/s)": f"{open_rmse:.4f}" if open_rmse is not None else "N/A",
+                                "闭环RMSE (m/s)": f"{closed_rmse:.4f}" if closed_rmse is not None else "N/A",
+                            })
+                    
+                    if open_closed_stats:
+                        open_closed_df = pd.DataFrame(open_closed_stats)
+                        st.dataframe(open_closed_df, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("开环闭环对比数据不可用")
+                    
+                    # 3. 零偏变化量对比表格
+                    st.markdown("---")
+                    st.markdown("#### 3. 零偏变化量对比")
+                    bias_change_stats = []
+                    
+                    for model in models_vel:
+                        # 确定列名前缀
+                        if model == "元学习模型":
+                            db_prefix = "ukf_db_intelligent"
+                        elif model == "零气动力模型":
+                            db_prefix = "ukf_db_baseline"
+                        elif model == "线性阻力模型":
+                            db_prefix = "ukf_db_linear_drag"
+                        else:  # 线性拟合模型
+                            db_prefix = "ukf_db_fit"
+                        
+                        # 检查列是否存在
+                        db_x_col = f"{db_prefix}_x"
+                        db_y_col = f"{db_prefix}_y"
+                        
+                        if db_x_col in log_df_stats_plot.columns and db_y_col in log_df_stats_plot.columns:
+                            # 获取所有有效数据（排除NaN）
+                            db_x_all = log_df_stats_plot[db_x_col].dropna()
+                            db_y_all = log_df_stats_plot[db_y_col].dropna()
+                            
+                            if len(db_x_all) > 10 and len(db_y_all) > 10:
+                                # 转换为numpy数组以便计算
+                                db_x_values = db_x_all.values
+                                db_y_values = db_y_all.values
+                                
+                                # 跳过前10个数据点（初始阶段可能不稳定），使用第11-20个数据点的平均值作为初始值
+                                skip_points = min(10, len(db_x_values) // 10)
+                                if skip_points > 0 and len(db_x_values) > skip_points * 2:
+                                    # 初始值：使用跳过点后的前几个点的平均值
+                                    initial_window = min(10, len(db_x_values) - skip_points)
+                                    db_x_initial = np.mean(db_x_values[skip_points:skip_points + initial_window])
+                                    db_y_initial = np.mean(db_y_values[skip_points:skip_points + initial_window])
+                                else:
+                                    # 如果数据点不够，使用前10%的数据点的平均值
+                                    initial_window = max(1, len(db_x_values) // 10)
+                                    db_x_initial = np.mean(db_x_values[:initial_window])
+                                    db_y_initial = np.mean(db_y_values[:initial_window])
+                                
+                                # 最终值：使用最后10个数据点的平均值
+                                final_window = min(10, len(db_x_values))
+                                db_x_final = np.mean(db_x_values[-final_window:])
+                                db_y_final = np.mean(db_y_values[-final_window:])
+                                
+                                # 变化量（ug转换为m/s^2：1 ug = 9.8e-6 m/s^2）
+                                # 注意：db的单位是ug，需要转换为m/s^2
+                                ug_to_ms2 = 9.8e-6
+                                db_x_change = (db_x_final - db_x_initial) * ug_to_ms2
+                                db_y_change = (db_y_final - db_y_initial) * ug_to_ms2
+                                
+                                # 格式化显示（带正负号，保留足够的小数位）
+                                # 如果变化量很小（< 1e-8），显示为0.0000
+                                if abs(db_x_change) < 1e-8:
+                                    db_x_change_str = "+0.0000"
+                                else:
+                                    db_x_change_str = f"{db_x_change:+.6f}"
+                                
+                                if abs(db_y_change) < 1e-8:
+                                    db_y_change_str = "+0.0000"
+                                else:
+                                    db_y_change_str = f"{db_y_change:+.6f}"
+                                
+                                bias_change_stats.append({
+                                    "模型": model,
+                                    "bax变化 (m/s²)": db_x_change_str,
+                                    "bay变化 (m/s²)": db_y_change_str,
+                                })
+                            elif len(db_x_all) > 1 and len(db_y_all) > 1:
+                                # 如果数据点较少，直接使用第一个和最后一个值
+                                db_x_values = db_x_all.values
+                                db_y_values = db_y_all.values
+                                
+                                db_x_initial = db_x_values[0]
+                                db_y_initial = db_y_values[0]
+                                db_x_final = db_x_values[-1]
+                                db_y_final = db_y_values[-1]
+                                
+                                ug_to_ms2 = 9.8e-6
+                                db_x_change = (db_x_final - db_x_initial) * ug_to_ms2
+                                db_y_change = (db_y_final - db_y_initial) * ug_to_ms2
+                                
+                                if abs(db_x_change) < 1e-8:
+                                    db_x_change_str = "+0.0000"
+                                else:
+                                    db_x_change_str = f"{db_x_change:+.6f}"
+                                
+                                if abs(db_y_change) < 1e-8:
+                                    db_y_change_str = "+0.0000"
+                                else:
+                                    db_y_change_str = f"{db_y_change:+.6f}"
+                                
+                                bias_change_stats.append({
+                                    "模型": model,
+                                    "bax变化 (m/s²)": db_x_change_str,
+                                    "bay变化 (m/s²)": db_y_change_str,
+                                })
+                    
+                    if bias_change_stats:
+                        bias_change_df = pd.DataFrame(bias_change_stats)
+                        st.dataframe(bias_change_df, use_container_width=True, hide_index=True)
+                        
+                        # 添加调试信息（可展开查看）
+                        with st.expander("🔍 零偏原始数据调试信息（点击展开）"):
+                            for model in models_vel:
+                                if model == "元学习模型":
+                                    db_prefix = "ukf_db_intelligent"
+                                elif model == "零气动力模型":
+                                    db_prefix = "ukf_db_baseline"
+                                elif model == "线性阻力模型":
+                                    db_prefix = "ukf_db_linear_drag"
+                                else:
+                                    db_prefix = "ukf_db_fit"
+                                
+                                db_x_col = f"{db_prefix}_x"
+                                db_y_col = f"{db_prefix}_y"
+                                
+                                if db_x_col in log_df_stats_plot.columns and db_y_col in log_df_stats_plot.columns:
+                                    db_x_all = log_df_stats_plot[db_x_col].dropna()
+                                    db_y_all = log_df_stats_plot[db_y_col].dropna()
+                                    
+                                    if len(db_x_all) > 0 and len(db_y_all) > 0:
+                                        st.write(f"**{model}**:")
+                                        st.write(f"- bax: 初始值={db_x_all.iloc[0]:.6f} ug, 最终值={db_x_all.iloc[-1]:.6f} ug, 数据点数={len(db_x_all)}")
+                                        st.write(f"- bay: 初始值={db_y_all.iloc[0]:.6f} ug, 最终值={db_y_all.iloc[-1]:.6f} ug, 数据点数={len(db_y_all)}")
+                                        if len(db_x_all) > 10:
+                                            st.write(f"- bax前10个值: {db_x_all.iloc[:10].values}")
+                                            st.write(f"- bax后10个值: {db_x_all.iloc[-10:].values}")
+                    else:
+                        st.info("零偏变化量统计数据不可用")
+                else:
+                    st.info("无法加载日志文件来计算详细统计数据")
+            else:
+                st.info("日志文件信息不可用，无法计算详细统计数据")
+            
             st.markdown("---")
             
             # ========== 时间序列对比部分（放在RMSE下面，参数上面）==========
@@ -4446,6 +5257,62 @@ def main():
                                 st.plotly_chart(fig, use_container_width=True)
                         else:
                             st.warning("无法生成位置对比图")
+                    
+                    # 绘制零偏估计图
+                    st.markdown("---")
+                    st.markdown("#### 🎯 UKF零偏估计对比")
+                    eb_figs, db_figs = plot_bias_estimation(log_df, selected_run)
+                    
+                    if eb_figs or db_figs:
+                        tab_eb, tab_db = st.tabs(["📊 陀螺零偏 (eb)", "📊 加速度计零偏 (db)"])
+                        
+                        with tab_eb:
+                            st.markdown("#### 陀螺零偏估计（X、Y、Z方向）")
+                            st.caption("单位：deg/h")
+                            if eb_figs:
+                                for i, (fig, label) in enumerate(zip(eb_figs, ["X", "Y", "Z"])):
+                                    st.plotly_chart(fig, use_container_width=True)
+                            else:
+                                st.warning("无法生成陀螺零偏对比图")
+                        
+                        with tab_db:
+                            st.markdown("#### 加速度计零偏估计（X、Y、Z方向）")
+                            st.caption("单位：ug")
+                            if db_figs:
+                                for i, (fig, label) in enumerate(zip(db_figs, ["X", "Y", "Z"])):
+                                    st.plotly_chart(fig, use_container_width=True)
+                            else:
+                                st.warning("无法生成加速度计零偏对比图")
+                    else:
+                        st.info("零偏估计数据不可用")
+                    
+                    # 绘制零偏估计图
+                    st.markdown("---")
+                    st.markdown("#### 🎯 UKF零偏估计对比")
+                    eb_figs, db_figs = plot_bias_estimation(log_df, selected_run)
+                    
+                    if eb_figs or db_figs:
+                        tab_eb, tab_db = st.tabs(["📊 陀螺零偏 (eb)", "📊 加速度计零偏 (db)"])
+                        
+                        with tab_eb:
+                            st.markdown("#### 陀螺零偏估计（X、Y、Z方向）")
+                            st.caption("单位：deg/h")
+                            if eb_figs:
+                                for i, (fig, label) in enumerate(zip(eb_figs, ["X", "Y", "Z"])):
+                                    st.plotly_chart(fig, use_container_width=True)
+                            else:
+                                st.warning("无法生成陀螺零偏对比图")
+                        
+                        with tab_db:
+                            st.markdown("#### 加速度计零偏估计（X、Y、Z方向）")
+                            st.caption("单位：ug")
+                            if db_figs:
+                                for i, (fig, label) in enumerate(zip(db_figs, ["X", "Y", "Z"])):
+                                    st.plotly_chart(fig, use_container_width=True)
+                            else:
+                                st.warning("无法生成加速度计零偏对比图")
+                    else:
+                        st.info("零偏估计数据不可用")
                     
                     # 绘制载体运动轨迹图
                     st.markdown("---")
@@ -4524,6 +5391,11 @@ def main():
                         log_df, selected_run
                     )
                     
+                    # 绘制沿航迹方向气动力对比图
+                    along_track_figs, along_track_rmse = plot_along_track_aerodynamic_force(
+                        log_df, selected_run
+                    )
+                    
                     if fa_figs or fa_total_figs:
                         st.markdown("---")
                         st.markdown("#### 🚁 气动力时间序列对比")
@@ -4582,6 +5454,37 @@ def main():
                                 )
                             else:
                                 st.warning("无法生成Z方向总力对比图")
+                    
+                    # 绘制沿航迹方向气动力对比图
+                    along_track_figs, along_track_rmse = plot_along_track_aerodynamic_force(
+                        log_df, selected_run
+                    )
+                    
+                    if along_track_figs:
+                        st.markdown("---")
+                        st.markdown("#### 🎯 沿航迹方向气动力对比")
+                        st.markdown(
+                            "计算 F_parallel = F_aero · v_unit，其中 v_unit = v / ||v||\n\n"
+                            "**验证假设**：虽然气动力的各个分量（Fx, Fy, Fz）可能不准确，"
+                            "但沿速度方向的气动力分量可能是准确的，这解释了为什么速度估计准确但气动力分量不准确。"
+                        )
+                        
+                        for fig in along_track_figs:
+                            st.plotly_chart(fig, use_container_width=True)
+                        
+                        # 显示沿航迹方向气动力的RMSE
+                        if along_track_rmse:
+                            st.markdown("##### 沿航迹方向气动力RMSE对比")
+                            rmse_data = []
+                            for model_name, rmse_val in along_track_rmse.items():
+                                rmse_data.append({
+                                    "模型": model_name,
+                                    "沿航迹方向气动力RMSE (N)": f"{rmse_val:.6f}",
+                                })
+                            
+                            if rmse_data:
+                                rmse_df = pd.DataFrame(rmse_data)
+                                st.dataframe(rmse_df, use_container_width=True, hide_index=True)
                     
                     # 绘制新息、修正值和R矩阵时间序列图
                     innovation_figs, correction_figs, r_figs = plot_innovation_and_r(

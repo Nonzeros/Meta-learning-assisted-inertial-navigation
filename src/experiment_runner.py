@@ -9,6 +9,12 @@ import torch
 import csv
 import matlab.engine
 import traceback
+from open_loop_dynamic_module import (
+    open_loop_dynamic_step_intelligent,
+    open_loop_dynamic_step_baseline,
+    open_loop_dynamic_step_linear_drag,
+    open_loop_dynamic_step_linear_fit,
+)
 from datetime import datetime
 from scipy.interpolate import interp1d
 from scipy.stats import chi2
@@ -480,12 +486,25 @@ def run_single_experiment(
         last_avp = last_avp.reshape((1, 10))
         last_avp[0, 3:6] = real_v[adapt_end_index, 0:3]
         
-        last_avp_xyz = last_avp.copy()
-        last_avp_xyz[0, 6:9] = real_p[adapt_end_index, 0:3]
+        last_avp_xyz_temp = last_avp.copy()
+        last_avp_xyz_temp[0, 6:9] = real_p[adapt_end_index, 0:3]
         last_avp_llh_matlab = eng_intelligent.xyz2llh_subfun(
-            matlab.double(last_avp_xyz.tolist())
+            matlab.double(last_avp_xyz_temp.tolist())
         )
         last_avp = np.array(last_avp_llh_matlab)
+        
+        # 转换last_avp到XYZ坐标系，用于初始化开环状态
+        last_avp_for_init = last_avp.reshape((1, 10))
+        matlab_last_avp_xyz_init = eng_intelligent.llh2xyz_subfun(
+            matlab.double(last_avp_for_init.tolist())
+        )
+        last_avp_xyz = np.array(matlab_last_avp_xyz_init)
+        last_avp_xyz = last_avp_xyz.flatten()
+        # 获取时间信息（从last_avp中提取，last_avp是LLH格式的(1, 10)或(10,)数组）
+        last_avp_flat = last_avp.flatten()
+        time_val = last_avp_flat[9] if len(last_avp_flat) > 9 else 0.0
+        last_avp_xyz = np.append(last_avp_xyz, time_val)
+        last_avp_xyz = last_avp_xyz.reshape((10, 1))
         
         # 纯惯导求解（使用元学习模型的引擎）
         matlab_pure_avps = eng_intelligent.pure_ins_solve(
@@ -712,6 +731,41 @@ def run_single_experiment(
         ukf_avps_fit = np.empty((10, loops + 1))
         ukf_avps_fit[:, 0] = last_avp_fit
         
+        # 初始化开环动力学模型的状态变量（使用XYZ坐标系）
+        # 开环状态：速度、位置（姿态使用真实姿态，不保存）
+        open_loop_intelligent_vel = last_avp_xyz[3:6, 0].copy().flatten()  # 初始速度
+        open_loop_intelligent_pos = last_avp_xyz[6:9, 0].copy().flatten()  # 初始位置
+        open_loop_baseline_vel = last_avp_xyz[3:6, 0].copy().flatten()
+        open_loop_baseline_pos = last_avp_xyz[6:9, 0].copy().flatten()
+        open_loop_linear_drag_vel = last_avp_xyz[3:6, 0].copy().flatten()
+        open_loop_linear_drag_pos = last_avp_xyz[6:9, 0].copy().flatten()
+        open_loop_fit_vel = last_avp_xyz[3:6, 0].copy().flatten()
+        open_loop_fit_pos = last_avp_xyz[6:9, 0].copy().flatten()
+        
+        # 开环结果收集数组（XYZ坐标系，只保存速度和位置）
+        open_loop_intelligent_avps = np.empty((6, loops + 1))  # [vx,vy,vz,px,py,pz]
+        open_loop_intelligent_avps[0:3, 0] = open_loop_intelligent_vel
+        open_loop_intelligent_avps[3:6, 0] = open_loop_intelligent_pos
+        open_loop_baseline_avps = np.empty((6, loops + 1))
+        open_loop_baseline_avps[0:3, 0] = open_loop_baseline_vel
+        open_loop_baseline_avps[3:6, 0] = open_loop_baseline_pos
+        open_loop_linear_drag_avps = np.empty((6, loops + 1))
+        open_loop_linear_drag_avps[0:3, 0] = open_loop_linear_drag_vel
+        open_loop_linear_drag_avps[3:6, 0] = open_loop_linear_drag_pos
+        open_loop_fit_avps = np.empty((6, loops + 1))
+        open_loop_fit_avps[0:3, 0] = open_loop_fit_vel
+        open_loop_fit_avps[3:6, 0] = open_loop_fit_pos
+        
+        # 零偏估计收集列表
+        eb_intelligent_collection = []  # 元学习模型陀螺零偏
+        db_intelligent_collection = []  # 元学习模型加速度计零偏
+        eb_baseline_collection = []
+        db_baseline_collection = []
+        eb_linear_drag_collection = []
+        db_linear_drag_collection = []
+        eb_fit_collection = []
+        db_fit_collection = []
+        
         neural_fa_collection = []
         real_fa_collection = []
         baseline_fa_collection = []  # 添加baseline气动力收集
@@ -724,8 +778,21 @@ def run_single_experiment(
         linear_drag_f_total_collection = []  # 线性阻力模型总力收集
         fit_f_total_collection = []  # 线性拟合模型总力收集
         
+        vbs = []
+        Fbs = []
         # 从适应阶段数据估计线性阻力系数和拟合权重
-        drag_coefficients = estimate_drag_coefficients_from_adaptation(adaptinput, adaptlabel)
+        for i in range(adapt_end_index):
+            real_Ri = R[i]
+            vbi = real_Ri.T @ adaptinput[i, 0:3].reshape((3, 1)) # vb
+            Fbi = real_Ri.T @ adaptlabel[i, :].reshape((3, 1)) # Fb
+            vbs.append(vbi.flatten())  # 转换为行向量并添加到列表
+            Fbs.append(Fbi.flatten())   # 转换为行向量并添加到列表
+        
+        # 将列表转换为 numpy 数组 (N, 3)
+        vbs = np.array(vbs)  # (adapt_end_index, 3)
+        Fbs = np.array(Fbs)  # (adapt_end_index, 3)
+            
+        drag_coefficients = estimate_drag_coefficients_from_adaptation(Fbs, vbs)
         W_fitted = None  # 将在第一次调用时计算
         
         # 初始化日志文件
@@ -900,6 +967,62 @@ def run_single_experiment(
             "fit_ukf_fused_px",
             "fit_ukf_fused_py",
             "fit_ukf_fused_pz",
+            # 开环结果（元学习模型）
+            "open_loop_intelligent_vx",
+            "open_loop_intelligent_vy",
+            "open_loop_intelligent_vz",
+            "open_loop_intelligent_px",
+            "open_loop_intelligent_py",
+            "open_loop_intelligent_pz",
+            # 开环结果（零气动力模型）
+            "open_loop_baseline_vx",
+            "open_loop_baseline_vy",
+            "open_loop_baseline_vz",
+            "open_loop_baseline_px",
+            "open_loop_baseline_py",
+            "open_loop_baseline_pz",
+            # 开环结果（线性阻力模型）
+            "open_loop_linear_drag_vx",
+            "open_loop_linear_drag_vy",
+            "open_loop_linear_drag_vz",
+            "open_loop_linear_drag_px",
+            "open_loop_linear_drag_py",
+            "open_loop_linear_drag_pz",
+            # 开环结果（线性拟合模型）
+            "open_loop_fit_vx",
+            "open_loop_fit_vy",
+            "open_loop_fit_vz",
+            "open_loop_fit_px",
+            "open_loop_fit_py",
+            "open_loop_fit_pz",
+            # UKF零偏估计（元学习模型）
+            "ukf_eb_intelligent_x",
+            "ukf_eb_intelligent_y",
+            "ukf_eb_intelligent_z",
+            "ukf_db_intelligent_x",
+            "ukf_db_intelligent_y",
+            "ukf_db_intelligent_z",
+            # UKF零偏估计（零气动力模型）
+            "ukf_eb_baseline_x",
+            "ukf_eb_baseline_y",
+            "ukf_eb_baseline_z",
+            "ukf_db_baseline_x",
+            "ukf_db_baseline_y",
+            "ukf_db_baseline_z",
+            # UKF零偏估计（线性阻力模型）
+            "ukf_eb_linear_drag_x",
+            "ukf_eb_linear_drag_y",
+            "ukf_eb_linear_drag_z",
+            "ukf_db_linear_drag_x",
+            "ukf_db_linear_drag_y",
+            "ukf_db_linear_drag_z",
+            # UKF零偏估计（线性拟合模型）
+            "ukf_eb_fit_x",
+            "ukf_eb_fit_y",
+            "ukf_eb_fit_z",
+            "ukf_db_fit_x",
+            "ukf_db_fit_y",
+            "ukf_db_fit_z",
             "pure_ins_att_x",
             "pure_ins_att_y",
             "pure_ins_att_z",
@@ -942,6 +1065,26 @@ def run_single_experiment(
             # 添加边界检查，确保不会越界
             if loop_index - 1 >= len(data.X):
                 break  # 如果超出数据范围，提前退出循环
+            
+            # 获取真实姿态四元数和旋转矩阵（用于开环计算）
+            if loop_index - 1 < len(real_q):
+                real_q_current = real_q[loop_index - 1, :]
+                matlab_real_q = matlab.double(real_q_current.tolist())
+                real_att_rad = np.array(
+                    eng_intelligent.q2att(matlab_real_q)
+                ).flatten()
+                matlab_Ri_real = eng_intelligent.a2mat_subfun(
+                    matlab.double(real_att_rad.tolist()), nargout=1
+                )
+                Ri_real = np.array(matlab_Ri_real)
+            else:
+                # 如果没有真实姿态，使用元学习模型的姿态
+                real_att_rad = last_avp[0, 0:3] * np.pi / 180.0
+                matlab_Ri_real = eng_intelligent.a2mat_subfun(
+                    matlab.double(real_att_rad.tolist()), nargout=1
+                )
+                Ri_real = np.array(matlab_Ri_real)
+            
             inputdata = data.X[loop_index - 1, :].copy()
             inputdata[0:3] = last_avp[0, 3:6]
             matlab_qua = eng_intelligent.a2qua_subfun(
@@ -1025,6 +1168,52 @@ def run_single_experiment(
             dynamic_vel_xyz = dynamic_vel.flatten()
             dynamic_vdot_xyz = dynamic_vdot.flatten()
             neural_fa_xyz = neural_fa.flatten()
+            
+            # ========== 元学习模型开环计算 ==========
+            # 使用上一时刻的开环速度和位置，真实姿态四元数
+            open_loop_vt_minus1_intelligent = open_loop_intelligent_vel.reshape((3, 1))
+            open_loop_pt_minus1_intelligent = open_loop_intelligent_pos.reshape((3, 1))
+            # 使用真实姿态四元数构建输入数据（用于元学习模型）
+            open_loop_inputdata = data.X[loop_index - 1, :].copy()
+            open_loop_inputdata[0:3] = open_loop_intelligent_vel  # 使用开环速度
+            open_loop_inputdata[3:7] = real_q_current  # 使用真实四元数
+            open_loop_delta_v = delta_v  # 使用相同的delta_v
+            open_loop_delta_p = desire_p - open_loop_pt_minus1_intelligent
+            
+            (
+                open_loop_pos_intelligent,
+                open_loop_vel_intelligent,
+                open_loop_vdot_intelligent,
+                open_loop_neural_fa_intelligent,
+                dynamic_a,
+                dynamic_P,
+                px,
+                pw,
+            ) = open_loop_dynamic_step_intelligent(
+                open_loop_inputdata,
+                outputlabel,
+                open_loop_delta_v,
+                open_loop_delta_p,
+                dynamic_a,
+                dynamic_P,
+                dim_a,
+                hover_throttle,
+                T_sp,
+                Ri_real,  # 使用真实旋转矩阵
+                open_loop_vt_minus1_intelligent,
+                open_loop_pt_minus1_intelligent,
+                px,
+                pw,
+                options,
+            )
+            # 更新开环状态
+            open_loop_intelligent_vel = open_loop_vel_intelligent.flatten()
+            open_loop_intelligent_pos = open_loop_pos_intelligent.flatten()
+            # 保存开环结果
+            open_loop_index = loop_index - first_index + 1
+            if open_loop_index < open_loop_intelligent_avps.shape[1]:
+                open_loop_intelligent_avps[0:3, open_loop_index] = open_loop_intelligent_vel
+                open_loop_intelligent_avps[3:6, open_loop_index] = open_loop_intelligent_pos
             
             # 计算 total 力：neural_f + R@fT + m*g 和 real_fa + R@fT + m*g
             m0 = 2.6
@@ -1164,6 +1353,19 @@ def run_single_experiment(
             ukf_fused_vel_xyz = ukf_fused_avp_xyz[3:6]
             ukf_fused_pos_xyz = ukf_fused_avp_xyz[6:9]
             
+            # 提取元学习模型的UKF零偏估计（15状态UKF：eb在索引9-11，db在索引12-14）
+            xk_intelligent = np.array(eng_intelligent.getfield(matlab_kf, "xk"))
+            if xk_intelligent.ndim > 1:
+                xk_intelligent = xk_intelligent.flatten()
+            if len(xk_intelligent) >= 15:
+                eb_intelligent = xk_intelligent[9:12]  # 陀螺零偏 (deg/h)
+                db_intelligent = xk_intelligent[12:15]  # 加速度计零偏 (ug)
+            else:
+                eb_intelligent = np.array([0.0, 0.0, 0.0])
+                db_intelligent = np.array([0.0, 0.0, 0.0])
+            eb_intelligent_collection.append(eb_intelligent)
+            db_intelligent_collection.append(db_intelligent)
+            
             # ========== 零动力学模型（Baseline）计算和UKF融合 ==========
             baseline_pos_xyz = np.array([np.nan, np.nan, np.nan])
             baseline_vel_xyz = np.array([np.nan, np.nan, np.nan])
@@ -1236,6 +1438,29 @@ def run_single_experiment(
                 R_fT_baseline = (Ri_baseline @ fT).flatten()
                 baseline_f_total_xyz = baseline_fa_xyz + R_fT_baseline + m_g
                 baseline_f_total_collection.append(baseline_f_total_xyz)
+                
+                # ========== 零气动力模型开环计算 ==========
+                open_loop_vt_minus1_baseline = open_loop_baseline_vel.reshape((3, 1))
+                open_loop_pt_minus1_baseline = open_loop_baseline_pos.reshape((3, 1))
+                (
+                    open_loop_pos_baseline,
+                    open_loop_vel_baseline,
+                    open_loop_vdot_baseline,
+                    open_loop_fa_baseline,
+                ) = open_loop_dynamic_step_baseline(
+                    open_loop_vt_minus1_baseline,
+                    open_loop_pt_minus1_baseline,
+                    Ri_real,  # 使用真实旋转矩阵
+                    hover_throttle,
+                    T_sp,
+                )
+                # 更新开环状态
+                open_loop_baseline_vel = open_loop_vel_baseline.flatten()
+                open_loop_baseline_pos = open_loop_pos_baseline.flatten()
+                # 保存开环结果
+                if open_loop_index < open_loop_baseline_avps.shape[1]:
+                    open_loop_baseline_avps[0:3, open_loop_index] = open_loop_baseline_vel
+                    open_loop_baseline_avps[3:6, open_loop_index] = open_loop_baseline_pos
 
                 # 零动力学模型UKF更新
                 baseline_vel_list = baseline_vel_xyz.tolist()
@@ -1292,6 +1517,19 @@ def run_single_experiment(
                 )
                 baseline_ukf_fused_vel_xyz = ukf_fused_avp_xyz_baseline[3:6]
                 baseline_ukf_fused_pos_xyz = ukf_fused_avp_xyz_baseline[6:9]
+                
+                # 提取baseline模型的UKF零偏估计
+                xk_baseline = np.array(eng_baseline.getfield(matlab_kf_baseline, "xk"))
+                if xk_baseline.ndim > 1:
+                    xk_baseline = xk_baseline.flatten()
+                if len(xk_baseline) >= 15:
+                    eb_baseline = xk_baseline[9:12]  # 陀螺零偏 (deg/h)
+                    db_baseline = xk_baseline[12:15]  # 加速度计零偏 (ug)
+                else:
+                    eb_baseline = np.array([0.0, 0.0, 0.0])
+                    db_baseline = np.array([0.0, 0.0, 0.0])
+                eb_baseline_collection.append(eb_baseline)
+                db_baseline_collection.append(db_baseline)
             except Exception as e:
                 print(
                     f"  WARNING [零动力学模型] loop_index={loop_index} 计算失败: {str(e)}，使用NaN值"
@@ -1376,6 +1614,30 @@ def run_single_experiment(
                 R_fT_linear_drag = (Ri_linear_drag @ fT).flatten()
                 linear_drag_f_total_xyz = linear_drag_fa_xyz + R_fT_linear_drag + m_g
                 linear_drag_f_total_collection.append(linear_drag_f_total_xyz)
+                
+                # ========== 线性阻力模型开环计算 ==========
+                open_loop_vt_minus1_linear_drag = open_loop_linear_drag_vel.reshape((3, 1))
+                open_loop_pt_minus1_linear_drag = open_loop_linear_drag_pos.reshape((3, 1))
+                (
+                    open_loop_pos_linear_drag,
+                    open_loop_vel_linear_drag,
+                    open_loop_vdot_linear_drag,
+                    open_loop_fa_linear_drag,
+                ) = open_loop_dynamic_step_linear_drag(
+                    open_loop_vt_minus1_linear_drag,
+                    open_loop_pt_minus1_linear_drag,
+                    Ri_real,  # 使用真实旋转矩阵
+                    hover_throttle,
+                    T_sp,
+                    drag_coefficients,
+                )
+                # 更新开环状态
+                open_loop_linear_drag_vel = open_loop_vel_linear_drag.flatten()
+                open_loop_linear_drag_pos = open_loop_pos_linear_drag.flatten()
+                # 保存开环结果
+                if open_loop_index < open_loop_linear_drag_avps.shape[1]:
+                    open_loop_linear_drag_avps[0:3, open_loop_index] = open_loop_linear_drag_vel
+                    open_loop_linear_drag_avps[3:6, open_loop_index] = open_loop_linear_drag_pos
 
                 # 线性阻力模型UKF更新
                 linear_drag_vel_list = linear_drag_vel_xyz.tolist()
@@ -1417,6 +1679,19 @@ def run_single_experiment(
                 )
                 linear_drag_ukf_fused_vel_xyz = ukf_fused_avp_xyz_linear_drag[3:6]
                 linear_drag_ukf_fused_pos_xyz = ukf_fused_avp_xyz_linear_drag[6:9]
+                
+                # 提取线性阻力模型的UKF零偏估计（15状态UKF：eb在索引9-11，db在索引12-14）
+                xk_linear_drag = np.array(eng_linear_drag.getfield(matlab_kf_linear_drag, "xk"))
+                if xk_linear_drag.ndim > 1:
+                    xk_linear_drag = xk_linear_drag.flatten()
+                if len(xk_linear_drag) >= 15:
+                    eb_linear_drag = xk_linear_drag[9:12]  # 陀螺零偏 (deg/h)
+                    db_linear_drag = xk_linear_drag[12:15]  # 加速度计零偏 (ug)
+                else:
+                    eb_linear_drag = np.array([0.0, 0.0, 0.0])
+                    db_linear_drag = np.array([0.0, 0.0, 0.0])
+                eb_linear_drag_collection.append(eb_linear_drag)
+                db_linear_drag_collection.append(db_linear_drag)
             except Exception as e:
                 print(
                     f"  WARNING [线性阻力模型] loop_index={loop_index} 计算失败: {str(e)}，使用NaN值"
@@ -1517,6 +1792,38 @@ def run_single_experiment(
                 R_fT_fit = (Ri_fit @ fT).flatten()
                 fit_f_total_xyz = fit_fa_xyz + R_fT_fit + m_g
                 fit_f_total_collection.append(fit_f_total_xyz)
+                
+                # ========== 线性拟合模型开环计算 ==========
+                open_loop_vt_minus1_fit = open_loop_fit_vel.reshape((3, 1))
+                open_loop_pt_minus1_fit = open_loop_fit_pos.reshape((3, 1))
+                # 构建开环输入数据（使用开环速度和真实四元数）
+                open_loop_inputdata_fit = data.X[loop_index - 1, :].copy()
+                open_loop_inputdata_fit[0:3] = open_loop_fit_vel  # 使用开环速度
+                open_loop_inputdata_fit[3:7] = real_q_current  # 使用真实四元数
+                (
+                    open_loop_pos_fit,
+                    open_loop_vel_fit,
+                    open_loop_vdot_fit,
+                    open_loop_fa_fit,
+                    W_fitted,
+                ) = open_loop_dynamic_step_linear_fit(
+                    open_loop_inputdata_fit,
+                    adaptinput,
+                    adaptlabel,
+                    open_loop_vt_minus1_fit,
+                    open_loop_pt_minus1_fit,
+                    Ri_real,  # 使用真实旋转矩阵
+                    hover_throttle,
+                    T_sp,
+                    W_fitted,
+                )
+                # 更新开环状态
+                open_loop_fit_vel = open_loop_vel_fit.flatten()
+                open_loop_fit_pos = open_loop_pos_fit.flatten()
+                # 保存开环结果
+                if open_loop_index < open_loop_fit_avps.shape[1]:
+                    open_loop_fit_avps[0:3, open_loop_index] = open_loop_fit_vel
+                    open_loop_fit_avps[3:6, open_loop_index] = open_loop_fit_pos
 
                 # 线性拟合模型UKF更新
                 fit_vel_list = fit_vel_xyz.tolist()
@@ -1558,6 +1865,19 @@ def run_single_experiment(
                 )
                 fit_ukf_fused_vel_xyz = ukf_fused_avp_xyz_fit[3:6]
                 fit_ukf_fused_pos_xyz = ukf_fused_avp_xyz_fit[6:9]
+                
+                # 提取线性拟合模型的UKF零偏估计
+                xk_fit = np.array(eng_fit.getfield(matlab_kf_fit, "xk"))
+                if xk_fit.ndim > 1:
+                    xk_fit = xk_fit.flatten()
+                if len(xk_fit) >= 15:
+                    eb_fit = xk_fit[9:12]  # 陀螺零偏 (deg/h)
+                    db_fit = xk_fit[12:15]  # 加速度计零偏 (ug)
+                else:
+                    eb_fit = np.array([0.0, 0.0, 0.0])
+                    db_fit = np.array([0.0, 0.0, 0.0])
+                eb_fit_collection.append(eb_fit)
+                db_fit_collection.append(db_fit)
             except Exception as e:
                 print(
                     f"  WARNING [线性拟合模型] loop_index={loop_index} 计算失败: {str(e)}，使用NaN值"
@@ -1801,6 +2121,62 @@ def run_single_experiment(
                 fit_ukf_fused_pos_xyz[0],
                 fit_ukf_fused_pos_xyz[1],
                 fit_ukf_fused_pos_xyz[2],
+                # 开环结果（元学习模型）
+                open_loop_intelligent_vel[0],
+                open_loop_intelligent_vel[1],
+                open_loop_intelligent_vel[2],
+                open_loop_intelligent_pos[0],
+                open_loop_intelligent_pos[1],
+                open_loop_intelligent_pos[2],
+                # 开环结果（零气动力模型）
+                open_loop_baseline_vel[0],
+                open_loop_baseline_vel[1],
+                open_loop_baseline_vel[2],
+                open_loop_baseline_pos[0],
+                open_loop_baseline_pos[1],
+                open_loop_baseline_pos[2],
+                # 开环结果（线性阻力模型）
+                open_loop_linear_drag_vel[0],
+                open_loop_linear_drag_vel[1],
+                open_loop_linear_drag_vel[2],
+                open_loop_linear_drag_pos[0],
+                open_loop_linear_drag_pos[1],
+                open_loop_linear_drag_pos[2],
+                # 开环结果（线性拟合模型）
+                open_loop_fit_vel[0],
+                open_loop_fit_vel[1],
+                open_loop_fit_vel[2],
+                open_loop_fit_pos[0],
+                open_loop_fit_pos[1],
+                open_loop_fit_pos[2],
+                # UKF零偏估计（元学习模型）
+                eb_intelligent_collection[-1][0] if len(eb_intelligent_collection) > 0 else 0.0,
+                eb_intelligent_collection[-1][1] if len(eb_intelligent_collection) > 0 else 0.0,
+                eb_intelligent_collection[-1][2] if len(eb_intelligent_collection) > 0 else 0.0,
+                db_intelligent_collection[-1][0] if len(db_intelligent_collection) > 0 else 0.0,
+                db_intelligent_collection[-1][1] if len(db_intelligent_collection) > 0 else 0.0,
+                db_intelligent_collection[-1][2] if len(db_intelligent_collection) > 0 else 0.0,
+                # UKF零偏估计（零气动力模型）
+                eb_baseline_collection[-1][0] if len(eb_baseline_collection) > 0 else 0.0,
+                eb_baseline_collection[-1][1] if len(eb_baseline_collection) > 0 else 0.0,
+                eb_baseline_collection[-1][2] if len(eb_baseline_collection) > 0 else 0.0,
+                db_baseline_collection[-1][0] if len(db_baseline_collection) > 0 else 0.0,
+                db_baseline_collection[-1][1] if len(db_baseline_collection) > 0 else 0.0,
+                db_baseline_collection[-1][2] if len(db_baseline_collection) > 0 else 0.0,
+                # UKF零偏估计（线性阻力模型）
+                eb_linear_drag_collection[-1][0] if len(eb_linear_drag_collection) > 0 else 0.0,
+                eb_linear_drag_collection[-1][1] if len(eb_linear_drag_collection) > 0 else 0.0,
+                eb_linear_drag_collection[-1][2] if len(eb_linear_drag_collection) > 0 else 0.0,
+                db_linear_drag_collection[-1][0] if len(db_linear_drag_collection) > 0 else 0.0,
+                db_linear_drag_collection[-1][1] if len(db_linear_drag_collection) > 0 else 0.0,
+                db_linear_drag_collection[-1][2] if len(db_linear_drag_collection) > 0 else 0.0,
+                # UKF零偏估计（线性拟合模型）
+                eb_fit_collection[-1][0] if len(eb_fit_collection) > 0 else 0.0,
+                eb_fit_collection[-1][1] if len(eb_fit_collection) > 0 else 0.0,
+                eb_fit_collection[-1][2] if len(eb_fit_collection) > 0 else 0.0,
+                db_fit_collection[-1][0] if len(db_fit_collection) > 0 else 0.0,
+                db_fit_collection[-1][1] if len(db_fit_collection) > 0 else 0.0,
+                db_fit_collection[-1][2] if len(db_fit_collection) > 0 else 0.0,
                 pure_ins_att_xyz[0],
                 pure_ins_att_xyz[1],
                 pure_ins_att_xyz[2],

@@ -74,10 +74,10 @@ def traditional_dynamic_module_linear_drag(
 
     # 线性阻力模型：F = -k * v
     drag_coefficients = np.array(drag_coefficients).reshape((3, 1))
-    traditional_fa = -drag_coefficients * vt_minus1
-
+    traditional_fa = -drag_coefficients * Ri.T @ vt_minus1
+    traditional_fa = Ri @ traditional_fa
     # 加速度计算
-    v_dot = g + (Ri @ fT + traditional_fa) / m0
+    v_dot = g + (Ri @ fT + Ri @ traditional_fa) / m0
 
     # 矩形积分
     vt = v_dot * deltat + vt_minus1
@@ -154,20 +154,23 @@ def traditional_dynamic_module_linear_regression(
     return pt, traditional_fa, vt, v_dot, W
 
 
-def estimate_drag_coefficients_from_adaptation(adaptinput, adaptlabel):
+def estimate_drag_coefficients_from_adaptation(Fbs, vbs):
     """
     从适应阶段的数据估计线性阻力系数
     使用最小二乘法：F_aero = -k * v
 
     参数:
-        adaptinput: 适应阶段输入数据 (Nxdim_x)，包含速度信息
-        adaptlabel: 适应阶段标签（气动力）(Nx3)
-
+        Fbs: 适应阶段机体系下的剩余气动力 (Nx3) numpy数组
+        vbs: 适应阶段机体坐标系下的速度 (Nx3) numpy数组
     返回:
         drag_coefficients: 阻力系数 [kx, ky, kz] (3x1)
     """
-    # 提取速度部分（假设速度在inputdata的前3个元素）
-    velocities = adaptinput[:, 0:3]  # (N, 3)
+    # 确保输入是 numpy 数组
+    vbs = np.array(vbs)  # (N, 3)
+    Fbs = np.array(Fbs)  # (N, 3)
+    
+    # 提取速度部分
+    velocities = vbs  # (N, 3)，已经是速度数据，不需要再切片
 
     # 对于每个方向，拟合 F = -k * v
     # 即：F = k * (-v)，使用最小二乘法
@@ -177,7 +180,7 @@ def estimate_drag_coefficients_from_adaptation(adaptinput, adaptlabel):
         # F_i = -k_i * v_i
         # 即：F_i = k_i * (-v_i)
         v_i = velocities[:, i].reshape(-1, 1)  # (N, 1)
-        F_i = adaptlabel[:, i].reshape(-1, 1)  # (N, 1)
+        F_i = Fbs[:, i].reshape(-1, 1)  # (N, 1)
 
         # 最小二乘：F_i = -k_i * v_i，即 k_i = -F_i / v_i
         # 使用最小二乘法：k_i = -(v_i^T * v_i)^(-1) * v_i^T * F_i
