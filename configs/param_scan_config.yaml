@@ -12,12 +12,12 @@ csv_files_config:
   
   # 当run_all_csv_files为false时，指定要执行的CSV文件
   # 可以是：
-  # 1. 文件名（字符串，如 'custom_figure8_baseline_nowind.csv'）
+  # 1. 文件名（字符串，如 'custom_figure8_baseline_100wind.csv'）
   # 2. 索引（整数，从0开始，如 0 表示第一个文件，4 表示最后一个文件）
   # 如果未指定（null），默认使用第一个CSV文件
   # 
   # 示例：
-  single_csv_file: 'custom_figure8_baseline_nowind.csv'  # 使用文件名
+  single_csv_file: 'custom_figure8_baseline_100wind.csv'  # 使用文件名
   # single_csv_file: 0  # 使用索引（第一个文件）
   # single_csv_file: 4  # 使用索引（最后一个文件）
   # single_csv_file: null  # 当前设置为null，当run_all_csv_files=false时使用第一个文件

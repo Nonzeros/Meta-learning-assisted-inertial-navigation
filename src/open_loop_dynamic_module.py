@@ -159,7 +159,7 @@ def open_loop_dynamic_step_linear_drag(
         Ri: 旋转矩阵（从真实姿态计算得到）
         hover_throttle: 悬停油门
         T_sp: 推力设定值
-        drag_coefficients: 阻力系数 [kx, ky, kz] (3x1或1x3数组)
+        drag_coefficients: 阻力系数矩阵K (3x3)
         deltat: 时间步长（默认0.02秒）
     
     返回:
@@ -173,12 +173,14 @@ def open_loop_dynamic_step_linear_drag(
     g = np.array([0, 0, -g_]).reshape((3, 1))
     fT = np.array([0, 0, float(T_sp / hover_throttle) * 9.8 * m0]).reshape((3, 1))
     
-    # 线性阻力模型：F = -k * v
-    drag_coefficients = np.array(drag_coefficients).reshape((3, 1))
-    traditional_fa = -drag_coefficients * vt_minus1
+    # 线性阻力模型：F = K @ v（在机体系下，开环计算时直接使用导航系速度）
+    K = np.array(drag_coefficients)  # (3, 3) 阻力系数矩阵
+    if K.shape != (3, 3):
+        K = np.array(K).reshape((3, 3))
+    traditional_fa = K @ Ri.T @ vt_minus1  # 矩阵乘法
     
     # 加速度计算
-    v_dot = g + (Ri @ fT + traditional_fa) / m0
+    v_dot = g + (Ri @ fT + Ri @ traditional_fa) / m0
     
     # 矩形积分
     vt = v_dot * deltat + vt_minus1

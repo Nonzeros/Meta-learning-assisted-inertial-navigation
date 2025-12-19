@@ -50,7 +50,7 @@ def traditional_dynamic_module_linear_drag(
 ):
     """
     传统动力学模型2：线性阻力模型
-    气动力 = -k * v，其中k是阻力系数（3x1向量）
+    气动力 = K @ v，其中K是阻力系数矩阵（3x3）
 
     参数:
         vt_minus1: 上一时刻的速度 (3x1)
@@ -58,7 +58,7 @@ def traditional_dynamic_module_linear_drag(
         Ri: 旋转矩阵
         hover_throttle: 悬停油门
         T_sp: 推力设定值
-        drag_coefficients: 阻力系数 [kx, ky, kz] (3x1或1x3数组)
+        drag_coefficients: 阻力系数矩阵K (3x3)
         deltat: 时间步长（默认0.02秒）
 
     返回:
@@ -72,10 +72,19 @@ def traditional_dynamic_module_linear_drag(
     g = np.array([0, 0, -g_]).reshape((3, 1))
     fT = np.array([0, 0, float(T_sp / hover_throttle) * 9.8 * m0]).reshape((3, 1))
 
-    # 线性阻力模型：F = -k * v
-    drag_coefficients = np.array(drag_coefficients).reshape((3, 1))
-    traditional_fa = -drag_coefficients * Ri.T @ vt_minus1
-    traditional_fa = Ri @ traditional_fa
+    # 线性阻力模型：F = K @ v（在机体系下）
+    K = np.array(drag_coefficients)  # (3, 3) 阻力系数矩阵
+    # print("K: ", K)
+    # if K.shape == (3,):
+    #     # 兼容旧代码：如果是(3,)数组，转换为对角矩阵
+    #     K = np.diag(K)
+    # elif K.shape != (3, 3):
+    #     K = np.array(K).reshape((3, 3))
+    
+    # 在机体系下计算：F_b = K @ v_b
+    v_b = Ri.T @ vt_minus1  # 导航系速度转换到机体系
+    F_b = K @ v_b  # (3, 1) 机体系下的气动力
+    traditional_fa = Ri @ F_b  # 转换回导航系
     # 加速度计算
     v_dot = g + (Ri @ fT + Ri @ traditional_fa) / m0
 
@@ -156,43 +165,34 @@ def traditional_dynamic_module_linear_regression(
 
 def estimate_drag_coefficients_from_adaptation(Fbs, vbs):
     """
-    从适应阶段的数据估计线性阻力系数
-    使用最小二乘法：F_aero = -k * v
+    从适应阶段的数据估计线性阻力系数矩阵
+    使用最小二乘法：Fbs^T = K @ vbs^T，求解3x3矩阵K
 
     参数:
         Fbs: 适应阶段机体系下的剩余气动力 (Nx3) numpy数组
         vbs: 适应阶段机体坐标系下的速度 (Nx3) numpy数组
     返回:
-        drag_coefficients: 阻力系数 [kx, ky, kz] (3x1)
+        K: 阻力系数矩阵 (3x3)，使得 F = K @ v
     """
     # 确保输入是 numpy 数组
     vbs = np.array(vbs)  # (N, 3)
     Fbs = np.array(Fbs)  # (N, 3)
     
-    # 提取速度部分
-    velocities = vbs  # (N, 3)，已经是速度数据，不需要再切片
-
-    # 对于每个方向，拟合 F = -k * v
-    # 即：F = k * (-v)，使用最小二乘法
-    drag_coefficients = np.zeros(3)
-
-    for i in range(3):
-        # F_i = -k_i * v_i
-        # 即：F_i = k_i * (-v_i)
-        v_i = velocities[:, i].reshape(-1, 1)  # (N, 1)
-        F_i = Fbs[:, i].reshape(-1, 1)  # (N, 1)
-
-        # 最小二乘：F_i = -k_i * v_i，即 k_i = -F_i / v_i
-        # 使用最小二乘法：k_i = -(v_i^T * v_i)^(-1) * v_i^T * F_i
-        if np.sum(v_i**2) > 1e-10:  # 避免除零
-            # 使用最小二乘法求解 k_i，使得 F_i ≈ -k_i * v_i
-            # 即求解：F_i = k_i * (-v_i)，所以 k_i = (v_i^T * v_i)^(-1) * v_i^T * (-F_i)
-            neg_v_i = -v_i
-            k_i_result = np.linalg.lstsq(neg_v_i, F_i, rcond=None)[0]
-            k_i = k_i_result[0, 0] if k_i_result.ndim > 0 else k_i_result
-            # 确保阻力系数为正（阻力应该与速度方向相反）
-            drag_coefficients[i] = max(0, k_i)
-        else:
-            drag_coefficients[i] = 0.0
-
-    return drag_coefficients
+    # 使用最小二乘法求解 Fbs^T = K @ vbs^T
+    # 即：Fbs = vbs @ K^T，所以 K^T = (vbs^T @ vbs)^(-1) @ vbs^T @ Fbs
+    # 因此：K = Fbs^T @ vbs @ (vbs^T @ vbs)^(-1)
+    
+    # 计算 vbs^T @ vbs (3x3)
+    vbs_T_vbs = vbs.T @ vbs  # (3, 3)
+    
+    # 检查矩阵是否可逆
+    try:
+        vbs_T_vbs_inv = np.linalg.inv(vbs_T_vbs)
+    except np.linalg.LinAlgError:
+        # 如果不可逆，使用伪逆
+        vbs_T_vbs_inv = np.linalg.pinv(vbs_T_vbs)
+    
+    # 计算 K = Fbs^T @ vbs @ inv(vbs^T @ vbs)
+    K = Fbs.T @ vbs @ vbs_T_vbs_inv  # (3, 3)
+    print("K: ", K)
+    return K

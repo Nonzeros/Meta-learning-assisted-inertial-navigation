@@ -27,10 +27,10 @@ matlab_ukf:
   # IMU误差参数（用于设置Q矩阵）
   # imuerrset(eb, db, web, wdb, ...)
   imu_err:
-    eb: 5  # 陀螺常值偏置 (deg/h)
-    db: 3000  # 加速度计常值偏置 (ug)
-    web: 0.05  # 角随机游走 (deg/sqrt(h)) - 用于Q矩阵
-    wdb: 100  # 速度随机游走 (ug/sqrt(Hz)) - 用于Q矩阵
+    eb: 10  # 陀螺常值偏置 (deg/h)
+    db: 10000  # 加速度计常值偏置 (ug)
+    web: 0.00001  # 角随机游走 (deg/sqrt(h)) - 用于Q矩阵
+    wdb: 0.00001  # 速度随机游走 (ug/sqrt(Hz)) - 用于Q矩阵
   
   # AVP初始误差参数（用于设置P0矩阵）
   # avperrset(phi, dvn, dpos)

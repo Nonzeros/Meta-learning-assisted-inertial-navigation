@@ -708,7 +708,7 @@ def run_single_experiment(
         validation_data_length = len(ts) - adapt_end_index
         # 循环次数取imu长度和validation_data_length的较小值，确保不会越界
         # loops = min(imu_length, validation_data_length)
-        # 适应阶段为2s（adapt_end_index=100，100*0.02=2s），计算时间为10s（500*0.02=10s）
+        # 适应阶段为10s（adapt_end_index=500，500*0.02=10s），计算时间为10s（500*0.02=10s）
         loops = 1500
         first_index = adapt_end_index
         
