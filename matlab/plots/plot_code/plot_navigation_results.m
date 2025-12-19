@@ -22,11 +22,11 @@ end
 
 % 文件列表和对应的风速标题
 file_config = {
-    'navigation_log_20251215_011436_custom_figure8_baseline_nowind.csv', '风速 0 m/s';
-    'navigation_log_20251215_010407_custom_figure8_baseline_100wind.csv', '风速 12.1 m/s';
-    'navigation_log_20251215_005345_custom_figure8_baseline_70wind.csv', '风速 8.5 m/s';
-    'navigation_log_20251215_004317_custom_figure8_baseline_70p20sint.csv', '风速 8.5+sin(t) m/s';
-    'navigation_log_20251215_003255_custom_figure8_baseline_35wind.csv', '风速 4.2 m/s';
+    'navigation_log_20251219_094926_custom_figure8_baseline_nowind.csv', '风速 0 m/s';
+    'navigation_log_20251219_093944_custom_figure8_baseline_100wind.csv', '风速 12.1 m/s';
+    'navigation_log_20251219_093006_custom_figure8_baseline_70wind.csv', '风速 8.5 m/s';
+    'navigation_log_20251219_092029_custom_figure8_baseline_70p20sint.csv', '风速 8.5+sin(t) m/s';
+    'navigation_log_20251219_091030_custom_figure8_baseline_35wind.csv', '风速 4.2 m/s';
 };
 
 % 遍历每个文件

@@ -908,7 +908,7 @@ def create_summary_table(df):
             summary_row["滤波器类型"] = "PF"
         else:
             summary_row["滤波器类型"] = filter_type if filter_type else "Unknown"
-
+        
         summary_row["lambda1"] = f"{row.get('param_filter_lambda1', 'N/A')}"
         summary_row["numPar"] = f"{row.get('param_filter_numPar', 'N/A')}"
         summary_row["Q"] = f"{row.get('param_filter_Q', 'N/A')}"
@@ -1083,7 +1083,7 @@ def plot_time_series(log_df, run_name: str):
                         line=dict(color="#06A77D", width=2, dash="dot"),
                     )
                 )
-
+        
         # 元学习模型UKF融合位置 - 使用日志文件中的ukf_fused_px/py/pz
         ukf_col = f"ukf_fused_p{dir}"
         if ukf_col in log_df_plot.columns:
@@ -1255,7 +1255,7 @@ def plot_time_series(log_df, run_name: str):
                         line=dict(color="#06A77D", width=2, dash="dot"),
                     )
                 )
-
+        
         # 元学习模型UKF融合速度 - 使用日志文件中的ukf_fused_vx/vy/vz
         ukf_col = f"ukf_fused_v{dir}"
         if ukf_col in log_df_plot.columns:
@@ -1429,7 +1429,7 @@ def plot_time_series(log_df, run_name: str):
                         line=dict(color="#06A77D", width=2, dash="dot"),
                     )
                 )
-
+        
         # 元学习模型UKF融合姿态 - 使用日志文件中的ukf_fused_att_x/y/z
         ukf_col = f"ukf_fused_att_{dir}"
         if ukf_col in log_df_plot.columns:
@@ -2528,7 +2528,7 @@ def plot_aerodynamic_force(log_df, run_name: str):
                         line=dict(color="#06A77D", width=2, dash="dot"),
                     )
                 )
-
+        
         # 元学习模型预测气动力 - neural_fa_x/y/z
         neural_col = f"neural_fa_{dir}"
         if neural_col in log_df_plot.columns:
@@ -3509,7 +3509,7 @@ def main():
                     ),
                     key="summary_run_selector",
                 )
-
+            
             selected_index = (
                 run_display_names.index(selected_display)
                 if selected_display in run_display_names
@@ -3899,7 +3899,7 @@ def main():
                                         legend_label = f"{row['CSV文件']} (numPar={row.get('参数实际值', row['参数值'])})"
                                     else:
                                         legend_label = row["CSV文件"]
-
+                                    
                                     fig_data.append(
                                         {
                                             "参数值": row["参数值"],
@@ -3999,7 +3999,7 @@ def main():
                                         )  # 使用实际粒子数值
                                     else:
                                         x_value = row["参数值"]
-
+                                    
                                     fig_data.append(
                                         {
                                             "参数值": str(
@@ -4177,7 +4177,7 @@ def main():
                                             legend_label = f"{row['CSV文件']} (numPar={row.get('参数实际值', row['参数值'])})"
                                         else:
                                             legend_label = row["CSV文件"]
-
+                                        
                                         fig_data.append(
                                             {
                                                 "参数值": row["参数值"],
@@ -4238,7 +4238,7 @@ def main():
                                     if row[ukf_col] is not None:
                                         # 折线图只显示CSV文件（风速），每个CSV文件一条线
                                         legend_label = row["CSV文件"]
-
+                                        
                                         fig_data.append(
                                             {
                                                 "参数值": row["参数值"],
@@ -4362,7 +4362,7 @@ def main():
                             "纯惯导速度RMSE_总",
                             "m/s",
                         )
-
+                    
                     if (
                         metric_type == "位置RMSE"
                         or metric_type == "速度+位置"
@@ -4404,7 +4404,7 @@ def main():
                             "纯惯导位置RMSE_总",
                             "m",
                         )
-
+                    
                     if metric_type == "气动力RMSE" or metric_type == "全部":
                         if metric_type == "全部":
                             st.markdown("---")
@@ -4518,7 +4518,7 @@ def main():
                 options=run_options,
                 index=default_index if default_index < len(run_options) else 0,
             )
-
+            
             selected_row = (
                 df[df["run_name"] == selected_run].iloc[0]
                 if "run_name" in df.columns
@@ -4843,7 +4843,7 @@ def main():
                                 marker_color=model_colors_fa[model],
                             )
                         )
-
+                
                 if len(fig_fa_rmse.data) > 0:
                     fig_fa_rmse.update_layout(
                         title="气动力RMSE对比（所有模型）",
@@ -4871,13 +4871,13 @@ def main():
                     metric_key = "metric_neural_fa_total_rmse_z"
                 else:
                     metric_key = "metric_neural_fa_total_rmse_total"
-                
+                    
                 fa_total_val = selected_row.get(metric_key, None)
                 if fa_total_val is not None:
                     fa_total_data.append(
                         {"方向": direction, "RMSE (N)": f"{fa_total_val:.6f}"}
                     )
-            
+                
             if fa_total_data:
                 fa_total_df = pd.DataFrame(fa_total_data)
                 st.dataframe(fa_total_df, use_container_width=True, hide_index=True)
@@ -5824,7 +5824,7 @@ def main():
                                             comp_task_batch = comp_row.get(
                                                 "param_task_batch_folder", None
                                             )
-
+                                            
                                             if comp_log_file and pd.notna(
                                                 comp_log_file
                                             ):
@@ -5977,7 +5977,7 @@ def main():
                                             comp_task_batch = comp_row.get(
                                                 "param_task_batch_folder", None
                                             )
-
+                                            
                                             if comp_log_file and pd.notna(
                                                 comp_log_file
                                             ):
@@ -6130,7 +6130,7 @@ def main():
                                             comp_task_batch = comp_row.get(
                                                 "param_task_batch_folder", None
                                             )
-
+                                            
                                             if comp_log_file and pd.notna(
                                                 comp_log_file
                                             ):

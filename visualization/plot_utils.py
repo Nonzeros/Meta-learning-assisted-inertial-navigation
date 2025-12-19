@@ -130,7 +130,7 @@ def plot_rmse_comparison(
         num_models += 1
     if fit_metrics is not None:
         num_models += 1
-    
+
     x = np.arange(len(categories))
     
     # 根据模型数量调整柱状图宽度和布局
@@ -226,8 +226,8 @@ def plot_rmse_comparison(
         ]
         ax.bar(x + width, baseline_values, width, label="零气动力模型UKF", alpha=0.9, color="#F77F00")
     else:
-        width = 0.35
-        fig, ax = plt.subplots(figsize=(12, 6))
+    width = 0.35
+    fig, ax = plt.subplots(figsize=(12, 6))
         ax.bar(x - width / 2, ukf_values, width, label="元学习模型UKF", alpha=0.9, color="#2E86AB")
         ax.bar(x + width / 2, pure_ins_values, width, label="纯惯导", alpha=0.9, color="#F24236")
 
