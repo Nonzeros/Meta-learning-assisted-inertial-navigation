@@ -186,13 +186,17 @@ def estimate_drag_coefficients_from_adaptation(Fbs, vbs):
     vbs_T_vbs = vbs.T @ vbs  # (3, 3)
     
     # 检查矩阵是否可逆
+    lam = 1e-3
     try:
-        vbs_T_vbs_inv = np.linalg.inv(vbs_T_vbs)
+        vbs_T_vbs_inv = np.linalg.inv(vbs_T_vbs + lam*np.eye(3))
     except np.linalg.LinAlgError:
         # 如果不可逆，使用伪逆
-        vbs_T_vbs_inv = np.linalg.pinv(vbs_T_vbs)
+        vbs_T_vbs_inv = np.linalg.pinv(vbs_T_vbs + lam*np.eye(3))
     
     # 计算 K = Fbs^T @ vbs @ inv(vbs^T @ vbs)
     K = Fbs.T @ vbs @ vbs_T_vbs_inv  # (3, 3)
+    # 如果K的某个元素大于0，则设置为0
+    K = np.diag(np.diag(K))
+    K = np.where(K > 0, 0, K)
     print("K: ", K)
     return K

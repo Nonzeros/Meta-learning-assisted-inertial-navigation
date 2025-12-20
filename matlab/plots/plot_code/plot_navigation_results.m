@@ -22,11 +22,11 @@ end
 
 % 文件列表和对应的风速标题
 file_config = {
-    'navigation_log_20251219_094926_custom_figure8_baseline_nowind.csv', '风速 0 m/s';
-    'navigation_log_20251219_093944_custom_figure8_baseline_100wind.csv', '风速 12.1 m/s';
-    'navigation_log_20251219_093006_custom_figure8_baseline_70wind.csv', '风速 8.5 m/s';
-    'navigation_log_20251219_092029_custom_figure8_baseline_70p20sint.csv', '风速 8.5+sin(t) m/s';
-    'navigation_log_20251219_091030_custom_figure8_baseline_35wind.csv', '风速 4.2 m/s';
+    'navigation_log_20251219_181003_custom_figure8_baseline_nowind.csv', '风速 0 m/s';
+    'navigation_log_20251219_175958_custom_figure8_baseline_100wind.csv', '风速 12.1 m/s';
+    'navigation_log_20251219_174958_custom_figure8_baseline_70wind.csv', '风速 8.5 m/s';
+    'navigation_log_20251219_173957_custom_figure8_baseline_70p20sint.csv', '风速 8.5+sin(t) m/s';
+    'navigation_log_20251219_173003_custom_figure8_baseline_35wind.csv', '风速 4.2 m/s';
 };
 
 % 遍历每个文件
@@ -51,117 +51,137 @@ for file_idx = 1:size(file_config, 1)
     time = time - time(1);  % 时间归零，从0开始
     
     % ==================== 第一张图：闭环融合的东向速度比较 ====================
-    figure('Position', [100, 100, 1200, 600], 'Name', '闭环融合东向速度比较');
+    figure('Position', [100, 100, 900, 500], 'Name', '闭环融合东向速度比较');
     
     hold on;
-    plot(time, data.real_vx, '-', 'LineWidth', 1.5, 'DisplayName', '参考值');
-    plot(time, data.ukf_fused_vx, '--', 'LineWidth', 1.5, 'DisplayName', '元学习模型辅助惯导');
-    plot(time, data.baseline_vel_x, '-.', 'LineWidth', 1.5, 'DisplayName', '零气动力模型辅助惯导');
-    plot(time, data.linear_drag_vel_x, ':', 'LineWidth', 1.5, 'DisplayName', '线性阻力气动力辅助惯导');
+    plot(time, data.real_vx, '-', 'LineWidth', 2.2, 'DisplayName', '参考值');
+    plot(time, data.ukf_fused_vx, '--', 'LineWidth', 2.0, 'DisplayName', '元学习模型辅助惯导');
+    plot(time, data.baseline_vel_x, '-.', 'LineWidth', 2.0, 'DisplayName', '零气动力模型辅助惯导');
+    plot(time, data.linear_drag_vel_x, ':', 'LineWidth', 2.0, 'DisplayName', '线性阻力气动力辅助惯导');
     % 注意：pure_ins_vx使用更细的虚线以区分
-    p5 = plot(time, data.pure_ins_vx, '--', 'LineWidth', 0.8, 'DisplayName', '纯惯导');
+    p5 = plot(time, data.pure_ins_vx, '--', 'LineWidth', 1.4, 'DisplayName', '纯惯导');
     p5.Color = [0.5, 0.5, 0.5];  % 使用灰色以区分
     
-    xlabel('时间 (s)', 'FontName', 'SimSun', 'FontSize', 12);
-    ylabel('东向速度 (m/s)', 'FontName', 'SimSun', 'FontSize', 12);
-    title(sprintf('闭环融合东向速度比较 - %s', wind_title), 'FontName', 'SimSun', 'FontSize', 14);
-    legend('Location', 'best', 'FontName', 'SimSun', 'FontSize', 10);
+    xlabel('时间 (s)', 'FontName', 'SimSun', 'FontSize', 18);
+    ylabel('东向速度 (m/s)', 'FontName', 'SimSun', 'FontSize', 18);
+    title(sprintf('东向速度比较 - %s', wind_title), 'FontName', 'SimSun', 'FontSize', 20);
+    legend('Location', 'best', 'FontName', 'SimSun', 'FontSize', 16);
     grid on;
+    box on;
+    set(gca, 'FontSize', 16);  % 坐标轴刻度字体
     hold off;
     
-    % 保存图片
-    output_filename = sprintf('fig1_velocity_closed_loop_%s.png', extractBefore(filename, '.csv'));
-    saveas(gcf, fullfile(output_dir, output_filename));
+    % 保存图片（高分辨率，PNG + EMF 方便插入Word）
+    base_name = sprintf('fig1_velocity_closed_loop_%s', extractBefore(filename, '.csv'));
+    set(gcf, 'PaperPositionMode', 'auto');
+    print(gcf, fullfile(output_dir, [base_name, '.png']), '-dpng', '-r600');
+    print(gcf, fullfile(output_dir, [base_name, '.emf']), '-dmeta', '-r600');
     close(gcf);
     
     % ==================== 第二张图：闭环融合的东向位置比较 ====================
-    figure('Position', [100, 100, 1200, 600], 'Name', '闭环融合东向位置比较');
+    figure('Position', [100, 100, 900, 500], 'Name', '闭环融合东向位置比较');
     
     hold on;
-    plot(time, data.real_px, '-', 'LineWidth', 1.5, 'DisplayName', '参考值');
-    plot(time, data.ukf_fused_px, '--', 'LineWidth', 1.5, 'DisplayName', '元学习模型辅助惯导');
-    plot(time, data.baseline_ukf_fused_px, '-.', 'LineWidth', 1.5, 'DisplayName', '零气动力模型辅助惯导');
-    plot(time, data.linear_drag_pos_x, ':', 'LineWidth', 1.5, 'DisplayName', '线性阻力气动力辅助惯导');
+    plot(time, data.real_px, '-', 'LineWidth', 2.2, 'DisplayName', '参考值');
+    plot(time, data.ukf_fused_px, '--', 'LineWidth', 2.0, 'DisplayName', '元学习模型辅助惯导');
+    plot(time, data.baseline_ukf_fused_px, '-.', 'LineWidth', 2.0, 'DisplayName', '零气动力模型辅助惯导');
+    plot(time, data.linear_drag_pos_x, ':', 'LineWidth', 2.0, 'DisplayName', '线性阻力气动力辅助惯导');
     % 注意：pure_ins_px使用更细的虚线以区分
-    p5_p = plot(time, data.pure_ins_px, '--', 'LineWidth', 0.8, 'DisplayName', '纯惯导');
+    p5_p = plot(time, data.pure_ins_px, '--', 'LineWidth', 1.4, 'DisplayName', '纯惯导');
     p5_p.Color = [0.5, 0.5, 0.5];  % 使用灰色以区分
     
-    xlabel('时间 (s)', 'FontName', 'SimSun', 'FontSize', 12);
-    ylabel('东向位置 (m)', 'FontName', 'SimSun', 'FontSize', 12);
-    title(sprintf('闭环融合东向位置比较 - %s', wind_title), 'FontName', 'SimSun', 'FontSize', 14);
-    legend('Location', 'best', 'FontName', 'SimSun', 'FontSize', 10);
+    xlabel('时间 (s)', 'FontName', 'SimSun', 'FontSize', 18);
+    ylabel('东向位置 (m)', 'FontName', 'SimSun', 'FontSize', 18);
+    title(sprintf('东向位置比较 - %s', wind_title), 'FontName', 'SimSun', 'FontSize', 20);
+    legend('Location', 'best', 'FontName', 'SimSun', 'FontSize', 16);
     grid on;
+    box on;
+    set(gca, 'FontSize', 16);
     hold off;
     
-    % 保存图片
-    output_filename = sprintf('fig2_position_closed_loop_%s.png', extractBefore(filename, '.csv'));
-    saveas(gcf, fullfile(output_dir, output_filename));
+    % 保存图片（高分辨率，PNG + EMF）
+    base_name = sprintf('fig2_position_closed_loop_%s', extractBefore(filename, '.csv'));
+    set(gcf, 'PaperPositionMode', 'auto');
+    print(gcf, fullfile(output_dir, [base_name, '.png']), '-dpng', '-r600');
+    print(gcf, fullfile(output_dir, [base_name, '.emf']), '-dmeta', '-r600');
     close(gcf);
     
     % ==================== 第三张图：x方向总力绘制比较 ====================
-    figure('Position', [100, 100, 1200, 600], 'Name', 'x方向总力比较');
+    figure('Position', [100, 100, 900, 500], 'Name', 'x方向总力比较');
     
     hold on;
-    plot(time, data.real_fa_total_x, '-', 'LineWidth', 1.5, 'DisplayName', '真实值');
-    plot(time, data.neural_f_total_x, '--', 'LineWidth', 1.5, 'DisplayName', '元学习模型');
-    plot(time, data.baseline_f_total_x, '-.', 'LineWidth', 1.5, 'DisplayName', '零气动力模型');
-    plot(time, data.linear_drag_f_total_x, ':', 'LineWidth', 1.5, 'DisplayName', '线性阻力模型');
+    plot(time, data.real_fa_total_x, '-', 'LineWidth', 2.2, 'DisplayName', '真实值');
+    plot(time, data.neural_f_total_x, '--', 'LineWidth', 2.0, 'DisplayName', '元学习模型');
+    plot(time, data.baseline_f_total_x, '-.', 'LineWidth', 2.0, 'DisplayName', '零气动力模型');
+    plot(time, data.linear_drag_f_total_x, ':', 'LineWidth', 2.0, 'DisplayName', '线性阻力模型');
     
-    xlabel('时间 (s)', 'FontName', 'SimSun', 'FontSize', 12);
-    ylabel('x方向总力 (N)', 'FontName', 'SimSun', 'FontSize', 12);
-    title(sprintf('x方向总力比较 - %s', wind_title), 'FontName', 'SimSun', 'FontSize', 14);
-    legend('Location', 'best', 'FontName', 'SimSun', 'FontSize', 10);
+    xlabel('时间 (s)', 'FontName', 'SimSun', 'FontSize', 18);
+    ylabel('x方向总力 (N)', 'FontName', 'SimSun', 'FontSize', 18);
+    title(sprintf('x方向总力比较 - %s', wind_title), 'FontName', 'SimSun', 'FontSize', 20);
+    legend('Location', 'best', 'FontName', 'SimSun', 'FontSize', 16);
     grid on;
+    box on;
+    set(gca, 'FontSize', 16);
     hold off;
     
-    % 保存图片
-    output_filename = sprintf('fig3_total_force_x_%s.png', extractBefore(filename, '.csv'));
-    saveas(gcf, fullfile(output_dir, output_filename));
+    % 保存图片（高分辨率，PNG + EMF）
+    base_name = sprintf('fig3_total_force_x_%s', extractBefore(filename, '.csv'));
+    set(gcf, 'PaperPositionMode', 'auto');
+    print(gcf, fullfile(output_dir, [base_name, '.png']), '-dpng', '-r600');
+    print(gcf, fullfile(output_dir, [base_name, '.emf']), '-dmeta', '-r600');
     close(gcf);
     
     % ==================== 第四张图：开环速度比较 ====================
-    figure('Position', [100, 100, 1200, 600], 'Name', '开环速度比较');
+    figure('Position', [100, 100, 900, 500], 'Name', '开环速度比较');
     
     hold on;
-    plot(time, data.real_vx, '-', 'LineWidth', 1.5, 'DisplayName', '参考值');
-    plot(time, data.open_loop_intelligent_vx, '--', 'LineWidth', 1.5, 'DisplayName', '元学习模型开环');
-    plot(time, data.open_loop_baseline_vx, '-.', 'LineWidth', 1.5, 'DisplayName', '零气动力模型开环');
-    plot(time, data.open_loop_linear_drag_vx, ':', 'LineWidth', 1.5, 'DisplayName', '线性阻力模型开环');
+    plot(time, data.real_vx, '-', 'LineWidth', 2.2, 'DisplayName', '参考值');
+    plot(time, data.open_loop_intelligent_vx, '--', 'LineWidth', 2.0, 'DisplayName', '元学习模型开环');
+    plot(time, data.open_loop_baseline_vx, '-.', 'LineWidth', 2.0, 'DisplayName', '零气动力模型开环');
+    plot(time, data.open_loop_linear_drag_vx, ':', 'LineWidth', 2.0, 'DisplayName', '线性阻力模型开环');
     
-    xlabel('时间 (s)', 'FontName', 'SimSun', 'FontSize', 12);
-    ylabel('东向速度 (m/s)', 'FontName', 'SimSun', 'FontSize', 12);
-    title(sprintf('开环速度比较 - %s', wind_title), 'FontName', 'SimSun', 'FontSize', 14);
-    legend('Location', 'best', 'FontName', 'SimSun', 'FontSize', 10);
+    xlabel('时间 (s)', 'FontName', 'SimSun', 'FontSize', 18);
+    ylabel('东向速度 (m/s)', 'FontName', 'SimSun', 'FontSize', 18);
+    title(sprintf('开环速度比较 - %s', wind_title), 'FontName', 'SimSun', 'FontSize', 20);
+    legend('Location', 'best', 'FontName', 'SimSun', 'FontSize', 16);
     grid on;
+    box on;
+    set(gca, 'FontSize', 16);
     hold off;
     
-    % 保存图片
-    output_filename = sprintf('fig4_velocity_open_loop_%s.png', extractBefore(filename, '.csv'));
-    saveas(gcf, fullfile(output_dir, output_filename));
+    % 保存图片（高分辨率，PNG + EMF）
+    base_name = sprintf('fig4_velocity_open_loop_%s', extractBefore(filename, '.csv'));
+    set(gcf, 'PaperPositionMode', 'auto');
+    print(gcf, fullfile(output_dir, [base_name, '.png']), '-dpng', '-r600');
+    print(gcf, fullfile(output_dir, [base_name, '.emf']), '-dmeta', '-r600');
     close(gcf);
     
     % ==================== 第五张图：闭环速度比较 ====================
-    figure('Position', [100, 100, 1200, 600], 'Name', '闭环速度比较');
+    figure('Position', [100, 100, 900, 500], 'Name', '闭环速度比较');
     
     hold on;
-    plot(time, data.real_vx, '-', 'LineWidth', 1.5, 'DisplayName', '参考值');
-    plot(time, data.ukf_fused_vx, '--', 'LineWidth', 1.5, 'DisplayName', '元学习模型闭环');
-    plot(time, data.baseline_ukf_fused_vx, '-.', 'LineWidth', 1.5, 'DisplayName', '零气动力模型闭环');
-    plot(time, data.linear_drag_ukf_fused_vx, ':', 'LineWidth', 1.5, 'DisplayName', '线性阻力模型闭环');
+    plot(time, data.real_vx, '-', 'LineWidth', 2.2, 'DisplayName', '参考值');
+    plot(time, data.ukf_fused_vx, '--', 'LineWidth', 2.0, 'DisplayName', '元学习模型闭环');
+    plot(time, data.baseline_ukf_fused_vx, '-.', 'LineWidth', 2.0, 'DisplayName', '零气动力模型闭环');
+    plot(time, data.linear_drag_ukf_fused_vx, ':', 'LineWidth', 2.0, 'DisplayName', '线性阻力模型闭环');
     % 注意：pure_ins_vx使用更细的虚线以区分
-    p5_v = plot(time, data.pure_ins_vx, '--', 'LineWidth', 0.8, 'DisplayName', '纯惯导');
+    p5_v = plot(time, data.pure_ins_vx, '--', 'LineWidth', 1.4, 'DisplayName', '纯惯导');
     p5_v.Color = [0.5, 0.5, 0.5];  % 使用灰色以区分
     
-    xlabel('时间 (s)', 'FontName', 'SimSun', 'FontSize', 12);
-    ylabel('东向速度 (m/s)', 'FontName', 'SimSun', 'FontSize', 12);
-    title(sprintf('闭环速度比较 - %s', wind_title), 'FontName', 'SimSun', 'FontSize', 14);
-    legend('Location', 'best', 'FontName', 'SimSun', 'FontSize', 10);
+    xlabel('时间 (s)', 'FontName', 'SimSun', 'FontSize', 18);
+    ylabel('东向速度 (m/s)', 'FontName', 'SimSun', 'FontSize', 18);
+    title(sprintf('东向速度比较 - %s', wind_title), 'FontName', 'SimSun', 'FontSize', 20);
+    legend('Location', 'best', 'FontName', 'SimSun', 'FontSize', 16);
     grid on;
+    box on;
+    set(gca, 'FontSize', 16);
     hold off;
     
-    % 保存图片
-    output_filename = sprintf('fig5_velocity_closed_loop_%s.png', extractBefore(filename, '.csv'));
-    saveas(gcf, fullfile(output_dir, output_filename));
+    % 保存图片（高分辨率，PNG + EMF）
+    base_name = sprintf('fig5_velocity_closed_loop_%s', extractBefore(filename, '.csv'));
+    set(gcf, 'PaperPositionMode', 'auto');
+    print(gcf, fullfile(output_dir, [base_name, '.png']), '-dpng', '-r600');
+    print(gcf, fullfile(output_dir, [base_name, '.emf']), '-dmeta', '-r600');
     close(gcf);
     
     fprintf('完成文件: %s\n\n', filename);
