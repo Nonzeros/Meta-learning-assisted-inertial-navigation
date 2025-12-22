@@ -25,7 +25,7 @@ file_config = {
     'navigation_log_20251219_181003_custom_figure8_baseline_nowind.csv', '风速 0 m/s';
     'navigation_log_20251219_175958_custom_figure8_baseline_100wind.csv', '风速 12.1 m/s';
     'navigation_log_20251219_174958_custom_figure8_baseline_70wind.csv', '风速 8.5 m/s';
-    'navigation_log_20251219_173957_custom_figure8_baseline_70p20sint.csv', '风速 8.5+sin(t) m/s';
+    'navigation_log_20251219_173957_custom_figure8_baseline_70p20sint.csv', '风速 8.5+2.4sin(t) m/s';
     'navigation_log_20251219_173003_custom_figure8_baseline_35wind.csv', '风速 4.2 m/s';
 };
 
@@ -99,4 +99,6 @@ for file_idx = 1:size(file_config, 1)
 end
 
 fprintf('所有真实剩余气动力图绘制完成！\n');
+
+
 

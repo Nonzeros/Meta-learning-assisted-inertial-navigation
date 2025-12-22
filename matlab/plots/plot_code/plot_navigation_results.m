@@ -25,7 +25,7 @@ file_config = {
     'navigation_log_20251219_181003_custom_figure8_baseline_nowind.csv', '风速 0 m/s';
     'navigation_log_20251219_175958_custom_figure8_baseline_100wind.csv', '风速 12.1 m/s';
     'navigation_log_20251219_174958_custom_figure8_baseline_70wind.csv', '风速 8.5 m/s';
-    'navigation_log_20251219_173957_custom_figure8_baseline_70p20sint.csv', '风速 8.5+sin(t) m/s';
+    'navigation_log_20251219_173957_custom_figure8_baseline_70p20sint.csv', '风速 8.5+2.4sin(t) m/s';
     'navigation_log_20251219_173003_custom_figure8_baseline_35wind.csv', '风速 4.2 m/s';
 };
 
@@ -62,8 +62,8 @@ for file_idx = 1:size(file_config, 1)
     p5 = plot(time, data.pure_ins_vx, '--', 'LineWidth', 1.4, 'DisplayName', '纯惯导');
     p5.Color = [0.5, 0.5, 0.5];  % 使用灰色以区分
     
-    xlabel('时间 (s)', 'FontName', 'SimSun', 'FontSize', 18);
-    ylabel('东向速度 (m/s)', 'FontName', 'SimSun', 'FontSize', 18);
+    xlabel('时间/s', 'FontName', 'SimSun', 'FontSize', 18);
+    ylabel('东向速度(m/s)', 'FontName', 'SimSun', 'FontSize', 18);
     title(sprintf('东向速度比较 - %s', wind_title), 'FontName', 'SimSun', 'FontSize', 20);
     legend('Location', 'best', 'FontName', 'SimSun', 'FontSize', 16);
     grid on;
@@ -90,8 +90,8 @@ for file_idx = 1:size(file_config, 1)
     p5_p = plot(time, data.pure_ins_px, '--', 'LineWidth', 1.4, 'DisplayName', '纯惯导');
     p5_p.Color = [0.5, 0.5, 0.5];  % 使用灰色以区分
     
-    xlabel('时间 (s)', 'FontName', 'SimSun', 'FontSize', 18);
-    ylabel('东向位置 (m)', 'FontName', 'SimSun', 'FontSize', 18);
+    xlabel('时间/s', 'FontName', 'SimSun', 'FontSize', 18);
+    ylabel('东向位置/m', 'FontName', 'SimSun', 'FontSize', 18);
     title(sprintf('东向位置比较 - %s', wind_title), 'FontName', 'SimSun', 'FontSize', 20);
     legend('Location', 'best', 'FontName', 'SimSun', 'FontSize', 16);
     grid on;
