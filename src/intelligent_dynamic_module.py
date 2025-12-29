@@ -45,7 +45,7 @@ def intelligent_dynamic_module(
     features = ["v", "q", "pwm"]  # 定义一个列表，包含三个特征名称
     modelname = f"{dataset}_dim-a-{dim_a}_{'-'.join(features)}"
 
-    stopping_epoch = 900  # 取训练第900轮的模型最为最终模型
+    stopping_epoch = 900 # 取训练第900轮的模型最为最终模型
     final_model = mlmodel.load_model(
         modelname=modelname + "-epoch-" + str(stopping_epoch)
     )  # 导入最终模型

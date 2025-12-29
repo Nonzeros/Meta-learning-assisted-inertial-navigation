@@ -95,7 +95,7 @@ for my_a in range(3, 4):
 
     options["shuffle"] = True  # True: shuffle trajectories to data points
     options["K_shot"] = 32  # number of K-shot for least square on a
-    options["phi_shot"] = 256  # batch size for training phi
+    options["phi_shot"] = 1  # batch size for training phi
 
     options["alpha"] = 0.01  # adversarial regularization loss
     options["learning_rate"] = 5e-4
@@ -104,7 +104,7 @@ for my_a in range(3, 4):
     )
     options["SN"] = 2.0  # maximum single layer spectral norm of phi
     options["gamma"] = 10.0  # max 2-norm of a
-    options["num_epochs"] = 500
+    options["num_epochs"] = 2000
 
     # Dataset Generation
     # Trainset = []
@@ -157,7 +157,7 @@ for my_a in range(3, 4):
     optimizer_phi = optim.Adam(phi_net.parameters(), lr=options["learning_rate"])
 
     # Meta-Training Algorithm
-    model_save_freq = 50  # How often to save the model
+    model_save_freq = 100  # How often to save the model
 
     # Create some arrays to save training statistics
     Loss_f = []  # combined force prediction loss
@@ -216,7 +216,7 @@ for my_a in range(3, 4):
             outputs = torch.mm(phi_net(inputs), a)
             loss_f = criterion(outputs, labels)
             temp = phi_net(inputs)
-
+            temp2 = h_net(temp)
             loss_c = criterion_h(h_net(temp), c_labels)
 
             loss_phi = loss_f - options["alpha"] * loss_c
