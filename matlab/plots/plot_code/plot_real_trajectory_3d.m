@@ -21,7 +21,7 @@ if ~exist(output_dir, 'dir')
 end
 
 % 读取指定的CSV文件
-filename = 'navigation_log_20251219_173957_custom_figure8_baseline_70p20sint.csv';
+filename = 'navigation_log_20251229_235222_custom_figure8_baseline_70wind.csv';
 filepath = fullfile(data_dir, filename);
 
 fprintf('读取文件: %s\n', filename);
@@ -61,9 +61,9 @@ plot3(real_px(end), real_py(end), real_pz(end), 's', 'MarkerSize', 14, ...
     'LineWidth', 2.2, 'DisplayName', '终点');
 
 % 设置坐标轴标签和标题
-xlabel('东向位置/m', 'FontName', 'SimSun', 'FontSize', 18);
-ylabel('北向位置/m', 'FontName', 'SimSun', 'FontSize', 18);
-zlabel('天向位置/m', 'FontName', 'SimSun', 'FontSize', 18);
+xlabel('x方向/m', 'FontName', 'SimSun', 'FontSize', 18);
+ylabel('y方向/m', 'FontName', 'SimSun', 'FontSize', 18);
+zlabel('z方向/m', 'FontName', 'SimSun', 'FontSize', 18);
 title('无人机真实飞行轨迹 - 风速 8.5+2.4sin(t) m/s', 'FontName', 'SimSun', 'FontSize', 20);
 
 % 设置坐标轴刻度字体

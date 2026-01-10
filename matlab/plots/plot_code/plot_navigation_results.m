@@ -22,11 +22,11 @@ end
 
 % 文件列表和对应的风速标题
 file_config = {
-    'navigation_log_20251219_181003_custom_figure8_baseline_nowind.csv', '风速 0 m/s';
-    'navigation_log_20251219_175958_custom_figure8_baseline_100wind.csv', '风速 12.1 m/s';
-    'navigation_log_20251219_174958_custom_figure8_baseline_70wind.csv', '风速 8.5 m/s';
-    'navigation_log_20251219_173957_custom_figure8_baseline_70p20sint.csv', '风速 8.5+2.4sin(t) m/s';
-    'navigation_log_20251219_173003_custom_figure8_baseline_35wind.csv', '风速 4.2 m/s';
+    'navigation_log_20251230_001219_custom_figure8_baseline_nowind.csv', '风速 0 m/s';
+    'navigation_log_20251230_000219_custom_figure8_baseline_100wind.csv', '风速 12.1 m/s';
+    'navigation_log_20251229_235222_custom_figure8_baseline_70wind.csv', '风速 8.5 m/s';
+    'navigation_log_20251229_234229_custom_figure8_baseline_70p20sint.csv', '风速 8.5+sin(t) m/s';
+    'navigation_log_20251229_233227_custom_figure8_baseline_35wind.csv', '风速 4.2 m/s';
 };
 
 % 遍历每个文件
@@ -63,8 +63,8 @@ for file_idx = 1:size(file_config, 1)
     p5.Color = [0.5, 0.5, 0.5];  % 使用灰色以区分
     
     xlabel('时间/s', 'FontName', 'SimSun', 'FontSize', 18);
-    ylabel('东向速度(m/s)', 'FontName', 'SimSun', 'FontSize', 18);
-    title(sprintf('东向速度比较 - %s', wind_title), 'FontName', 'SimSun', 'FontSize', 20);
+    ylabel('x方向速度(m/s)', 'FontName', 'SimSun', 'FontSize', 18);
+    title(sprintf('x方向速度比较 - %s', wind_title), 'FontName', 'SimSun', 'FontSize', 20);
     legend('Location', 'best', 'FontName', 'SimSun', 'FontSize', 16);
     grid on;
     box on;
@@ -141,7 +141,7 @@ for file_idx = 1:size(file_config, 1)
     plot(time, data.open_loop_linear_drag_vx, ':', 'LineWidth', 2.0, 'DisplayName', '线性阻力模型开环');
     
     xlabel('时间 (s)', 'FontName', 'SimSun', 'FontSize', 18);
-    ylabel('东向速度 (m/s)', 'FontName', 'SimSun', 'FontSize', 18);
+    ylabel('x方向速度 (m/s)', 'FontName', 'SimSun', 'FontSize', 18);
     title(sprintf('开环速度比较 - %s', wind_title), 'FontName', 'SimSun', 'FontSize', 20);
     legend('Location', 'best', 'FontName', 'SimSun', 'FontSize', 16);
     grid on;

@@ -116,7 +116,7 @@ else:
     csv_files_to_process = all_csv_files.copy()
     print(f"未启用参数扫描，执行全部CSV文件（共 {len(csv_files_to_process)} 个）")
 
-adapt_end_index = 800  # 适应部分下标(不包括) 10s = 500 * 0.02s
+adapt_end_index = 750  # 适应部分下标(不包括) 10s = 500 * 0.02s
 
 # ========== MLflow实验记录初始化 ==========
 # 设置MLflow实验

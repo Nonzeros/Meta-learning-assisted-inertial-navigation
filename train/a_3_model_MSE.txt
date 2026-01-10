@@ -70,3 +70,27 @@ train Data
 **** c =5:nowind****Before learning: MSE is  1.26
 Mean predictor: MSE is  0.85
 After learning phi(x): MSE is  0.53
+train Data
+**** c =0:10wind****Before learning: MSE is  1.20
+Mean predictor: MSE is  1.14
+After learning phi(x): MSE is  0.66
+train Data
+**** c =1:20wind****Before learning: MSE is  2.17
+Mean predictor: MSE is  1.68
+After learning phi(x): MSE is  0.96
+train Data
+**** c =2:30wind****Before learning: MSE is  3.58
+Mean predictor: MSE is  1.76
+After learning phi(x): MSE is  1.09
+train Data
+**** c =3:40wind****Before learning: MSE is  6.69
+Mean predictor: MSE is  1.91
+After learning phi(x): MSE is  1.21
+train Data
+**** c =4:50wind****Before learning: MSE is  11.41
+Mean predictor: MSE is  2.03
+After learning phi(x): MSE is  1.37
+train Data
+**** c =5:nowind****Before learning: MSE is  1.26
+Mean predictor: MSE is  0.85
+After learning phi(x): MSE is  0.51
