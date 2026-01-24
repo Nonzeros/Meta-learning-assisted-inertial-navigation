@@ -272,7 +272,7 @@ for file_idx = 1:length(data_files)
             pattern = wind_patterns{i};
             if contains(file_basename, pattern)
                 wind_value = wind_speed_map(pattern);
-                wind_label = sprintf('wind speed %s m/s', wind_value);
+                wind_label = sprintf('风速 %s m/s', wind_value);
                 break;
             end
         end
@@ -318,14 +318,15 @@ legend_handles = [];
 legend_labels = {};
 for i = 1:length(file_data)
     h = histogram(file_data(i).fax, 50, 'FaceColor', colors(i,:), ...
-        'EdgeColor', 'none', 'FaceAlpha', 0.6, 'DisplayName', file_data(i).wind_label);
+        'EdgeColor', 'none', 'FaceAlpha', 0.6, 'DisplayName', file_data(i).wind_label, ...
+        'Normalization', 'pdf');
     legend_handles = [legend_handles, h];
     legend_labels{end+1} = file_data(i).wind_label;
 end
-xlabel('fax (N)', 'FontName', 'SimSun', 'FontSize', 18);
-ylabel('频数', 'FontName', 'SimSun', 'FontSize', 18);
-title('X方向（东向）气动力分布 - 所有文件', 'FontName', 'SimSun', 'FontSize', 20);
-legend(legend_handles, legend_labels, 'Location', 'best', 'FontSize', 12);
+xlabel('东向剩余气动力/N', 'FontName', 'SimSun', 'FontSize', 18);
+ylabel('概率密度(N^-^1)', 'FontName', 'SimSun', 'FontSize', 18);
+title('各方向剩余气动力分布', 'FontName', 'SimSun', 'FontSize', 20);
+legend(legend_handles, legend_labels, 'Location', 'best', 'FontName', 'SimSun', 'FontSize', 12);
 grid on;
 box on;
 set(gca, 'FontSize', 16);
@@ -338,14 +339,15 @@ legend_handles = [];
 legend_labels = {};
 for i = 1:length(file_data)
     h = histogram(file_data(i).fay, 50, 'FaceColor', colors(i,:), ...
-        'EdgeColor', 'none', 'FaceAlpha', 0.6, 'DisplayName', file_data(i).wind_label);
+        'EdgeColor', 'none', 'FaceAlpha', 0.6, 'DisplayName', file_data(i).wind_label, ...
+        'Normalization', 'pdf');
     legend_handles = [legend_handles, h];
     legend_labels{end+1} = file_data(i).wind_label;
 end
-xlabel('fay (N)', 'FontName', 'SimSun', 'FontSize', 18);
-ylabel('频数', 'FontName', 'SimSun', 'FontSize', 18);
-title('Y方向（北向）气动力分布 - 所有文件', 'FontName', 'SimSun', 'FontSize', 20);
-legend(legend_handles, legend_labels, 'Location', 'best', 'FontSize', 12);
+xlabel('北向剩余气动力/N', 'FontName', 'SimSun', 'FontSize', 18);
+ylabel('概率密度(N^-^1)', 'FontName', 'SimSun', 'FontSize', 18);
+% title('北向剩余气动力分布 - 所有文件', 'FontName', 'SimSun', 'FontSize', 20);
+legend(legend_handles, legend_labels, 'Location', 'best', 'FontName', 'SimSun', 'FontSize', 12);
 grid on;
 box on;
 set(gca, 'FontSize', 16);
@@ -358,14 +360,15 @@ legend_handles = [];
 legend_labels = {};
 for i = 1:length(file_data)
     h = histogram(file_data(i).faz, 50, 'FaceColor', colors(i,:), ...
-        'EdgeColor', 'none', 'FaceAlpha', 0.6, 'DisplayName', file_data(i).wind_label);
+        'EdgeColor', 'none', 'FaceAlpha', 0.6, 'DisplayName', file_data(i).wind_label, ...
+        'Normalization', 'pdf');
     legend_handles = [legend_handles, h];
     legend_labels{end+1} = file_data(i).wind_label;
 end
-xlabel('faz (N)', 'FontName', 'SimSun', 'FontSize', 18);
-ylabel('频数', 'FontName', 'SimSun', 'FontSize', 18);
-title('Z方向（天向）气动力分布 - 所有文件', 'FontName', 'SimSun', 'FontSize', 20);
-legend(legend_handles, legend_labels, 'Location', 'best', 'FontSize', 12);
+xlabel('天向剩余气动力/N', 'FontName', 'SimSun', 'FontSize', 18);
+ylabel('概率密度(N^-^1)', 'FontName', 'SimSun', 'FontSize', 18);
+% title('天向剩余气动力分布', 'FontName', 'SimSun', 'FontSize', 20);
+legend(legend_handles, legend_labels, 'Location', 'best', 'FontName', 'SimSun', 'FontSize', 12);
 grid on;
 box on;
 set(gca, 'FontSize', 16);

@@ -20,7 +20,7 @@ if ~exist(output_dir, 'dir')
 end
 
 % 读取100wind文件
-filename = 'navigation_log_20251215_010407_custom_figure8_baseline_100wind.csv';
+filename = 'navigation_log_20251229_234229_custom_figure8_baseline_70p20sint.csv';
 filepath = fullfile(data_dir, filename);
 
 fprintf('读取文件: %s\n', filename);
@@ -54,15 +54,29 @@ h5 = plot(time, data.pure_ins_vx, '--', 'LineWidth', 1.8, 'DisplayName', '纯惯
 h5.Color = [0.5, 0.5, 0.5];
 
 % 标注放大区域（用矩形框）
-y_limits = ylim;
-% 矩形框只占据y轴范围的60%高度，并居中放置
-rect_height_ratio = 0.1;  % 矩形框高度占比
-y_range = y_limits(2) - y_limits(1);
-rect_height = y_range * rect_height_ratio;
-% rect_y_start = y_limits(1) + y_range * (1 - rect_height_ratio) / 2;  % 居中
-rect_y_start = -3;  % 居中
+% 首先确定y轴范围（基于所有曲线）
+all_y_data = [data.real_vx; data.ukf_fused_vx; data.baseline_ukf_fused_vx; 
+              data.linear_drag_ukf_fused_vx; data.pure_ins_vx];
+y_min_all = min(all_y_data);
+y_max_all = max(all_y_data);
+y_range = y_max_all - y_min_all;
+
+% 计算矩形框的y范围（基于放大区域内的数据）
+y_data_zoom_box = [data.real_vx(zoom_idx); data.ukf_fused_vx(zoom_idx); 
+                   data.linear_drag_ukf_fused_vx(zoom_idx); data.pure_ins_vx(zoom_idx)];
+y_min_box = min(y_data_zoom_box);
+y_max_box = max(y_data_zoom_box);
+rect_y_start = y_min_box;
+rect_height = y_max_box - y_min_box;
+
+% 添加一些边距使矩形框更清晰
+y_margin_box = rect_height * 0.05;  % 5%边距
+rect_y_start = rect_y_start - y_margin_box;
+rect_height = rect_height + 2 * y_margin_box;
+
+% 绘制矩形框
 rectangle('Position', [zoom_time_start, rect_y_start, zoom_time_end-zoom_time_start, rect_height], ...
-    'EdgeColor', 'r', 'LineWidth', 1');
+    'EdgeColor', 'r', 'LineWidth', 1.5);
 
 xlabel('时间 (s)', 'FontName', 'SimSun', 'FontSize', 19);
 ylabel('东向速度 (m/s)', 'FontName', 'SimSun', 'FontSize', 19);
@@ -93,15 +107,9 @@ p4_zoom.Color = h4.Color;  % 与主图线性阻力颜色一致
 p5_zoom = plot(time(zoom_idx), data.pure_ins_vx(zoom_idx), '--', 'LineWidth', 1.6);
 p5_zoom.Color = [0.5, 0.5, 0.5];  % 灰色
 
-% 设置放大图的x和y范围
+% 设置放大图的x和y范围，使其与矩形框完全匹配
 xlim([zoom_time_start, zoom_time_end]);
-% 自动计算y范围（排除baseline以看清其他模型）
-y_data_zoom = [data.real_vx(zoom_idx); data.ukf_fused_vx(zoom_idx); 
-               data.linear_drag_ukf_fused_vx(zoom_idx); data.pure_ins_vx(zoom_idx)];
-y_min = min(y_data_zoom);
-y_max = max(y_data_zoom);
-y_margin = (y_max - y_min) * 0.1;
-ylim([y_min - y_margin, y_max + y_margin]);
+ylim([rect_y_start, rect_y_start + rect_height]);
 
 % 设置坐标轴刻度字体为Times New Roman（数字）
 set(gca, 'FontName', 'Times New Roman', 'FontSize', 15);
@@ -135,15 +143,28 @@ h5 = plot(time, data.pure_ins_px, '--', 'LineWidth', 1.8, 'DisplayName', '纯惯
 h5.Color = [0.5, 0.5, 0.5];
 
 % 标注放大区域（用矩形框）
-y_limits = ylim;
-% 矩形框只占据y轴范围的60%高度，并居中放置
-rect_height_ratio = 0.1;  % 矩形框高度占比
-y_range = y_limits(2) - y_limits(1);
-rect_height = y_range * rect_height_ratio;
-% rect_y_start = y_limits(1) + y_range * (1 - rect_height_ratio) / 2;  % 居中
-rect_y_start = -50;  % 居中
-rectangle('Position', [zoom_time_start, rect_y_start, zoom_time_end-zoom_time_start, rect_height], ...
-    'EdgeColor', 'r', 'LineWidth', 1);
+% 首先确定y轴范围（基于所有曲线）
+all_y_data2 = [data.real_px; data.ukf_fused_px; data.baseline_ukf_fused_px; 
+               data.linear_drag_ukf_fused_px; data.pure_ins_px];
+y_min_all2 = min(all_y_data2);
+y_max_all2 = max(all_y_data2);
+
+% 计算矩形框的y范围（基于放大区域内的数据）
+y_data_zoom_box2 = [data.real_px(zoom_idx); data.ukf_fused_px(zoom_idx); 
+                    data.linear_drag_ukf_fused_px(zoom_idx); data.pure_ins_px(zoom_idx)];
+y_min_box2 = min(y_data_zoom_box2);
+y_max_box2 = max(y_data_zoom_box2);
+rect_y_start2 = y_min_box2;
+rect_height2 = y_max_box2 - y_min_box2;
+
+% 添加一些边距使矩形框更清晰
+y_margin_box2 = rect_height2 * 0.05;  % 5%边距
+rect_y_start2 = rect_y_start2 - y_margin_box2;
+rect_height2 = rect_height2 + 2 * y_margin_box2;
+
+% 绘制矩形框
+rectangle('Position', [zoom_time_start, rect_y_start2, zoom_time_end-zoom_time_start, rect_height2], ...
+    'EdgeColor', 'r', 'LineWidth', 1.5);
 
 xlabel('时间 (s)', 'FontName', 'SimSun', 'FontSize', 19);
 ylabel('东向位置 (m)', 'FontName', 'SimSun', 'FontSize', 19);
@@ -174,15 +195,9 @@ p4_zoom2.Color = h4.Color;  % 与主图线性阻力颜色一致
 p5_zoom2 = plot(time(zoom_idx), data.pure_ins_px(zoom_idx), '--', 'LineWidth', 1.6);
 p5_zoom2.Color = [0.5, 0.5, 0.5];  % 灰色
 
-% 设置放大图的范围
+% 设置放大图的范围，使其与矩形框完全匹配
 xlim([zoom_time_start, zoom_time_end]);
-% 自动计算y范围（排除baseline以看清其他模型）
-y_data_zoom2 = [data.real_px(zoom_idx); data.ukf_fused_px(zoom_idx); 
-                data.linear_drag_ukf_fused_px(zoom_idx); data.pure_ins_px(zoom_idx)];
-y_min2 = min(y_data_zoom2);
-y_max2 = max(y_data_zoom2);
-y_margin2 = (y_max2 - y_min2) * 0.1;
-ylim([y_min2 - y_margin2, y_max2 + y_margin2]);
+ylim([rect_y_start2, rect_y_start2 + rect_height2]);
 
 % 设置坐标轴刻度字体为Times New Roman（数字）
 set(gca, 'FontName', 'Times New Roman', 'FontSize', 15);
